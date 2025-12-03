@@ -35,7 +35,10 @@ const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS as string
 app.get('/', (req, res) => {
     res.send('Hello World');
 });
-
+app.get('/api/health', (req, res) => {
+    res.json({ status: 'success', message: 'API OK' });
+  });
+  
 connectdb()
     .then(() => {
         // Setup cron jobs
