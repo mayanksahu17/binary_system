@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "esModuleInterop": true,
+    "target": "ES6",
+    "module": "CommonJS",
+    "outDir": "./dist",
+    "strict": false,
+    "baseUrl": ".",
+    "skipLibCheck": true,
+    "noImplicitAny": false,
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "paths": {
+      "src/*": ["node_modules/globalpayments-api/lib/src/*"]
+    }
+  },
+  "include": ["src/**/*", "typings.d.ts"],
+  "exclude": ["node_modules", "dist"]
+}

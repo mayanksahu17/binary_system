@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Binary MLM Tree Visualization</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 1.1em;
+        }
+        
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+        
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            min-width: 150px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        
+        .stat-card h3 {
+            font-size: 2em;
+            margin-bottom: 5px;
+        }
+        
+        .stat-card p {
+            font-size: 0.9em;
+            opacity: 0.9;
+        }
+        
+        .tree-container {
+            overflow-x: auto;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            margin-top: 20px;
+        }
+        
+        .tree {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-width: 100%;
+        }
+        
+        .tree-node {
+            background: white;
+            border: 3px solid #667eea;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 10px;
+            min-width: 200px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        
+        .tree-node:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            border-color: #764ba2;
+        }
+        
+        .tree-node.root {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            border-color: #f5576c;
+        }
+        
+        .node-header {
+            font-weight: bold;
+            font-size: 1.1em;
+            margin-bottom: 8px;
+            color: #333;
+        }
+        
+        .tree-node.root .node-header {
+            color: white;
+        }
+        
+        .node-userid {
+            font-size: 0.9em;
+            color: #667eea;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+        
+        .tree-node.root .node-userid {
+            color: white;
+        }
+        
+        .node-info {
+            font-size: 0.85em;
+            color: #666;
+            margin: 3px 0;
+        }
+        
+        .tree-node.root .node-info {
+            color: rgba(255,255,255,0.9);
+        }
+        
+        .node-business {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid #eee;
+        }
+        
+        .tree-node.root .node-business {
+            border-top-color: rgba(255,255,255,0.3);
+        }
+        
+        .business-item {
+            text-align: center;
+            flex: 1;
+        }
+        
+        .business-label {
+            font-size: 0.75em;
+            color: #999;
+            margin-bottom: 3px;
+        }
+        
+        .tree-node.root .business-label {
+            color: rgba(255,255,255,0.8);
+        }
+        
+        .business-value {
+            font-weight: bold;
+            color: #667eea;
+            font-size: 0.9em;
+        }
+        
+        .tree-node.root .business-value {
+            color: white;
+        }
+        
+        .tree-level {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin: 20px 0;
+            position: relative;
+        }
+        
+        .tree-level::before {
+            content: '';
+            position: absolute;
+            top: -20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 2px;
+            height: 20px;
+            background: #667eea;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 50px;
+            color: #666;
+        }
+        
+        .search-box {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+        
+        .search-box input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 1em;
+        }
+        
+        .search-box input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 15px;
+            }
+            
+            h1 {
+                font-size: 1.8em;
+            }
+            
+            .tree-node {
+                min-width: 150px;
+                padding: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1> Binary Tree</h1>
+        <p class="subtitle">Complete Network Visualization</p>
+        
+        <div class="stats" id="stats">
+            <div class="stat-card">
+                <h3 id="totalUsers">0</h3>
+                <p>Total Users</p>
+            </div>
+            <div class="stat-card">
+                <h3 id="activeUsers">0</h3>
+                <p>Active Users</p>
+            </div>
+            <div class="stat-card">
+                <h3 id="totalDownlines">0</h3>
+                <p>Total Downlines</p>
+            </div>
+        </div>
+        
+        <div class="search-box">
+            <input type="text" id="searchInput" placeholder="Search by User ID, Name, Email, or Phone..." onkeyup="filterTree()">
+        </div>
+        
+        <div class="tree-container">
+            <div class="tree" id="tree"></div>
+        </div>
+    </div>
+    
+    <script>
+        const treeData = {{TREE_DATA}};
+        
+        function renderTree() {
+            const treeContainer = document.getElementById('tree');
+            treeContainer.innerHTML = '';
+            
+            // Calculate stats
+            const totalUsers = treeData.length;
+            const activeUsers = treeData.filter(u => u.status === 'active').length;
+            const totalDownlines = treeData.reduce((sum, u) => sum + (u.leftDownlines || 0) + (u.rightDownlines || 0), 0);
+            
+            document.getElementById('totalUsers').textContent = totalUsers;
+            document.getElementById('activeUsers').textContent = activeUsers;
+            document.getElementById('totalDownlines').textContent = totalDownlines;
+            
+            if (treeData.length === 0) {
+                treeContainer.innerHTML = '<div class="loading">No users found in the tree</div>';
+                return;
+            }
+            
+            // Find root (user with no parent)
+            const root = treeData.find(u => !u.parent || u.parent === null);
+            
+            if (!root) {
+                treeContainer.innerHTML = '<div class="loading">No root user found</div>';
+                return;
+            }
+            
+            // Build tree structure level by level
+            const levels = [];
+            const processed = new Set();
+            
+            function addToLevel(user, level) {
+                if (!user || processed.has(user.id)) return;
+                
+                if (!levels[level]) levels[level] = [];
+                levels[level].push(user);
+                processed.add(user.id);
+                
+                // Find children
+                const leftChild = treeData.find(u => u.id === user.leftChild);
+                const rightChild = treeData.find(u => u.id === user.rightChild);
+                
+                if (leftChild) addToLevel(leftChild, level + 1);
+                if (rightChild) addToLevel(rightChild, level + 1);
+            }
+            
+            addToLevel(root, 0);
+            
+            // Render levels
+            levels.forEach((levelUsers, levelIndex) => {
+                const levelDiv = document.createElement('div');
+                levelDiv.className = 'tree-level';
+                
+                levelUsers.forEach(user => {
+                    const node = createNode(user, levelIndex === 0);
+                    levelDiv.appendChild(node);
+                });
+                
+                treeContainer.appendChild(levelDiv);
+            });
+        }
+        
+        function createNode(user, isRoot) {
+            const node = document.createElement('div');
+            node.className = 'tree-node' + (isRoot ? ' root' : '');
+            node.setAttribute('data-userid', user.userId || '');
+            node.setAttribute('data-name', (user.name || '').toLowerCase());
+            node.setAttribute('data-email', (user.email || '').toLowerCase());
+            node.setAttribute('data-phone', (user.phone || '').toLowerCase());
+            
+            node.innerHTML = `
+                <div class="node-header">${user.name || 'Unknown'}</div>
+                <div class="node-userid">${user.userId || 'N/A'}</div>
+                <div class="node-info">📧 ${user.email || 'No email'}</div>
+                <div class="node-info">📱 ${user.phone || 'No phone'}</div>
+                <div class="node-info">Status: <strong>${user.status || 'N/A'}</strong></div>
+                <div class="node-business">
+                    <div class="business-item">
+                        <div class="business-label">Left</div>
+                        <div class="business-value">${user.leftDownlines || 0}</div>
+                        <div class="business-label" style="font-size: 0.7em;">${parseFloat(user.leftBusiness || 0).toFixed(2)}</div>
+                    </div>
+                    <div class="business-item">
+                        <div class="business-label">Right</div>
+                        <div class="business-value">${user.rightDownlines || 0}</div>
+                        <div class="business-label" style="font-size: 0.7em;">${parseFloat(user.rightBusiness || 0).toFixed(2)}</div>
+                    </div>
+                </div>
+            `;
+            
+            return node;
+        }
+        
+        function filterTree() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const nodes = document.querySelectorAll('.tree-node');
+            
+            nodes.forEach(node => {
+                const userId = node.getAttribute('data-userid') || '';
+                const name = node.getAttribute('data-name') || '';
+                const email = node.getAttribute('data-email') || '';
+                const phone = node.getAttribute('data-phone') || '';
+                
+                if (searchTerm === '' || 
+                    userId.toLowerCase().includes(searchTerm) ||
+                    name.includes(searchTerm) ||
+                    email.includes(searchTerm) ||
+                    phone.includes(searchTerm)) {
+                    node.style.display = 'block';
+                } else {
+                    node.style.display = 'none';
+                }
+            });
+        }
+        
+        // Render tree on load
+        renderTree();
+    </script>
+</body>
+</html>
+
