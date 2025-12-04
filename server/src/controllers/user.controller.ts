@@ -12,6 +12,7 @@ import { WalletType, WithdrawalStatus } from "../models/types";
 import { processInvestment } from "../services/investment.service";
 import { processMockPayment } from "../lib/payments/mock-nowpayments";
 import { exchangeWallets } from "../services/wallet-exchange.service";
+import { sendInvestmentPurchaseEmail } from "../lib/mail-service/email.service";
 import { Types } from "mongoose";
 
 /**
@@ -94,7 +95,7 @@ export const createInvestment = asyncHandler(async (req, res) => {
   }
 
   const body = req.body;
-  const { packageId, amount, currency = "USD" } = body;
+  const { packageId, amount, currency = "USD", paymentId } = body;
 
   if (!packageId || !amount) {
     throw new AppError("Package ID and amount are required", 400);
@@ -104,16 +105,32 @@ export const createInvestment = asyncHandler(async (req, res) => {
     throw new AppError("Invalid package ID", 400);
   }
 
-  // Process mock payment
-  const paymentResult = await processMockPayment({
-    amount: Number(amount),
-    currency,
-    packageId,
-    userId,
-  });
+  let finalPaymentId: string;
+  let paymentResult: any = null;
 
-  if (!paymentResult.success) {
-    throw new AppError(paymentResult.message || "Payment failed", 400);
+  // If paymentId is provided (from NOWPayments), use it. Otherwise, process mock payment.
+  if (paymentId) {
+    // Payment already processed via NOWPayments, use the provided paymentId
+    finalPaymentId = paymentId;
+    // Create payment result structure for response
+    paymentResult = {
+      paymentId: paymentId,
+      status: "completed",
+    };
+  } else {
+    // Process mock payment (legacy flow)
+    paymentResult = await processMockPayment({
+      amount: Number(amount),
+      currency,
+      packageId,
+      userId,
+    });
+
+    if (!paymentResult.success) {
+      throw new AppError(paymentResult.message || "Payment failed", 400);
+    }
+
+    finalPaymentId = paymentResult.paymentId;
   }
 
   // Process investment
@@ -121,7 +138,7 @@ export const createInvestment = asyncHandler(async (req, res) => {
     new Types.ObjectId(userId),
     new Types.ObjectId(packageId),
     Number(amount),
-    paymentResult.paymentId
+    finalPaymentId
   );
 
   // Get updated wallets
@@ -140,6 +157,62 @@ export const createInvestment = asyncHandler(async (req, res) => {
   const binaryTree = await BinaryTree.findOne({ user: userId })
     .select("leftBusiness rightBusiness leftCarry rightCarry")
     .lean();
+
+  // Send investment purchase confirmation email if user has email
+  try {
+    const user = await User.findById(userId).select('email name').lean();
+    const pkg = await Package.findById(packageId).select('packageName duration totalOutputPct').lean();
+    
+    if (user?.email && pkg) {
+      // Format dates - investment.startDate and investment.endDate are Date objects
+      const startDateStr = investment.startDate instanceof Date 
+        ? investment.startDate.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+          })
+        : new Date(investment.startDate || Date.now()).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+          });
+
+      const endDateStr = investment.endDate instanceof Date
+        ? investment.endDate.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+          })
+        : new Date(investment.endDate || Date.now() + (pkg.duration || 150) * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+          });
+
+      // Generate dashboard link
+      const clientUrl = process.env.CLIENT_URL || process.env.FRONTEND_URL || 'http://localhost:3000';
+      const dashboardLink = `${clientUrl}/investments`;
+
+      // Send email asynchronously (don't wait for it)
+      sendInvestmentPurchaseEmail({
+        to: user.email,
+        name: user.name || 'User',
+        packageName: pkg.packageName || 'Investment Package',
+        investmentAmount: Number(amount),
+        duration: investment.durationDays || pkg.duration || 150,
+        totalOutputPct: investment.totalOutputPct || pkg.totalOutputPct || 225,
+        startDate: startDateStr,
+        endDate: endDateStr,
+        dashboardLink,
+      }).catch((error) => {
+        // Log error but don't fail investment if email fails
+        console.error('Failed to send investment purchase confirmation email:', error);
+      });
+    }
+  } catch (error) {
+    // Log error but don't fail investment if email fails
+    console.error('Error preparing investment purchase confirmation email:', error);
+  }
 
   const response = res as any;
   response.status(201).json({

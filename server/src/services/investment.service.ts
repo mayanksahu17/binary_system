@@ -11,6 +11,7 @@ import {
   createReferralTransaction,
   createBinaryTransaction,
 } from "./transaction.service";
+import { initializeBinaryTree, getAdminUser } from "./userInit.service";
 
 /**
  * Calculate daily binary bonuses for all users
@@ -446,9 +447,30 @@ export async function processInvestment(
     }
 
     // Get user's binary tree to determine position
-    const userTree = await BinaryTree.findOne({ user: userId });
+    let userTree = await BinaryTree.findOne({ user: userId });
     if (!userTree) {
-      throw new AppError("User binary tree not found", 404);
+      // Binary tree not found - try to create it using user's referrer and position
+      console.warn(`Binary tree not found for user ${userId}, attempting to create it...`);
+      try {
+        const referrerId = user.referrer ? (user.referrer as Types.ObjectId) : null;
+        const position = (user.position as "left" | "right" | null) || null;
+        
+        // If no referrer, assign to admin
+        const finalReferrerId = referrerId || await getAdminUser();
+        
+        await initializeBinaryTree(userId, finalReferrerId, position || undefined);
+        userTree = await BinaryTree.findOne({ user: userId });
+        if (!userTree) {
+          throw new AppError("Failed to create binary tree for user. Please contact support.", 500);
+        }
+        console.log(`Binary tree created successfully for user ${userId}`);
+      } catch (initError: any) {
+        console.error(`Failed to create binary tree for user ${userId}:`, initError);
+        throw new AppError(
+          `User binary tree not found and could not be created: ${initError.message || 'Unknown error'}. Please contact support.`,
+          500
+        );
+      }
     }
 
     // Determine position (left or right) based on user's position in parent's tree

@@ -290,7 +290,7 @@ export default function DashboardPage() {
 
           {/* Wallets Section */}
           <div className="mb-8">
-            <h2 className="text-xl font-bold mb-4">My Wallets</h2>
+            <h2 className="text-xl font-bold mb-4 text-black ">My Wallets</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {wallets.map((wallet) => (
                 <div key={wallet.type} className="bg-white rounded-lg shadow p-6">
@@ -313,19 +313,7 @@ export default function DashboardPage() {
 
           {/* Packages Section */}
           <div className="mb-8">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold">Available Packages</h2>
-              <button
-                onClick={() => {
-                  setSelectedPackage(null);
-                  setInvestAmount('');
-                  setShowInvestModal(true);
-                }}
-                className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
-              >
-                + Invest Now
-              </button>
-            </div>
+            <h2 className="text-xl font-bold mb-4 text-black">Available Packages</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {packages.map((pkg) => {
                 // Calculate daily ROI rate from totalOutputPct or use legacy roi
@@ -403,11 +391,11 @@ export default function DashboardPage() {
                     </div>
 
                     {/* Legacy ROI (if different from calculated) */}
-                    {pkg.roi && pkg.roi !== dailyRoiRate * 100 && (
+                    {/* {pkg.roi && pkg.roi !== dailyRoiRate * 100 && (
                       <div className="mb-4 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800">
                         <span className="font-medium">Legacy ROI:</span> {pkg.roi}%
                       </div>
-                    )}
+                    )} */}
 
                     <button
                       onClick={() => {
@@ -428,7 +416,7 @@ export default function DashboardPage() {
 
           {/* Investments Section */}
           <div className="mb-8">
-            <h2 className="text-xl font-bold mb-4">My Investments</h2>
+            <h2 className="text-xl font-bold mb-4 text-black">My Investments</h2>
             <div className="bg-white rounded-lg shadow overflow-hidden">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
@@ -484,7 +472,7 @@ export default function DashboardPage() {
           {/* Referral Links Section */}
           {referralLinks && (
             <div className="mb-8">
-              <h2 className="text-xl font-bold mb-4">Referral Links</h2>
+              <h2 className="text-xl font-bold mb-4 text-black">Referral Links</h2>
               <div className="bg-white rounded-lg shadow p-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="p-4 bg-blue-50 rounded-lg border-2 border-blue-200">
@@ -535,7 +523,7 @@ export default function DashboardPage() {
           {/* Binary Tree Info Section */}
           {binaryTree && (
             <div className="mb-8">
-              <h2 className="text-xl font-bold mb-4">Binary Tree Information</h2>
+              <h2 className="text-xl font-bold mb-4 text-black ">Binary Tree Information</h2>
               <div className="bg-white rounded-lg shadow p-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
@@ -626,7 +614,7 @@ export default function DashboardPage() {
           <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
             <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
               <div className="mt-3">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Make Investment</h3>
+                <h3 className="text-lg font-medium text-gray-900 mb-4">Make Investment  hiii </h3>
                 {selectedPackage && (
                   <div className="mb-4 p-4 bg-indigo-50 rounded-lg border border-indigo-200">
                     <h4 className="font-semibold text-gray-800 mb-3">{selectedPackage.packageName}</h4>
@@ -677,7 +665,7 @@ export default function DashboardPage() {
                     min={selectedPackage?.minAmount || 0}
                     max={selectedPackage?.maxAmount || 100000}
                     step="0.01"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-black bg-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                     placeholder="Enter amount"
                   />
                 </div>

@@ -19,6 +19,7 @@ import { createBinaryTransaction, createReferralTransaction } from "../services/
 import { triggerDailyCalculations as triggerDailyCalculationsCron } from "../cron/roi-cron";
 import { Voucher } from "../models/Voucher";
 import { Ticket } from "../models/Ticket";
+import { Settings } from "../models/Settings";
 
 /**
  * Admin Signup
@@ -997,6 +998,73 @@ export const deleteUser = asyncHandler(async (req, res) => {
     });
   } catch (error: any) {
     throw new AppError(error.message || "Failed to delete user", 500);
+  }
+});
+
+/**
+ * Get NOWPayments gateway status
+ * GET /api/v1/admin/settings/nowpayments
+ */
+export const getNOWPaymentsStatus = asyncHandler(async (req, res) => {
+  try {
+    let setting = await Settings.findOne({ key: "nowpayments_enabled" });
+    
+    // If setting doesn't exist, create it with default value (true)
+    if (!setting) {
+      setting = await Settings.create({
+        key: "nowpayments_enabled",
+        value: true,
+        description: "Enable or disable NOWPayments payment gateway",
+      });
+    }
+
+    const response = res as any;
+    response.status(200).json({
+      status: "success",
+      data: {
+        enabled: setting.value === true || setting.value === "true",
+      },
+    });
+  } catch (error: any) {
+    throw new AppError(error.message || "Failed to get NOWPayments status", 500);
+  }
+});
+
+/**
+ * Update NOWPayments gateway status
+ * PUT /api/v1/admin/settings/nowpayments
+ * Body: { enabled: true/false }
+ */
+export const updateNOWPaymentsStatus = asyncHandler(async (req, res) => {
+  const { enabled } = req.body;
+
+  if (typeof enabled !== "boolean") {
+    throw new AppError("enabled must be a boolean value", 400);
+  }
+
+  try {
+    const setting = await Settings.findOneAndUpdate(
+      { key: "nowpayments_enabled" },
+      { 
+        value: enabled,
+        description: "Enable or disable NOWPayments payment gateway",
+      },
+      { 
+        upsert: true, 
+        new: true 
+      }
+    );
+
+    const response = res as any;
+    response.status(200).json({
+      status: "success",
+      message: `NOWPayments gateway ${enabled ? "enabled" : "disabled"} successfully`,
+      data: {
+        enabled: setting.value === true || setting.value === "true",
+      },
+    });
+  } catch (error: any) {
+    throw new AppError(error.message || "Failed to update NOWPayments status", 500);
   }
 });
 

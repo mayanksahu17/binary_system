@@ -19,16 +19,15 @@ function LoginLinkContent() {
     if (hasRedirected.current || error || isRedirecting) return;
 
     const authenticateAndRedirect = async () => {
-      const token = searchParams.get('token');
-      const userId = searchParams.get('userId');
+      const tempToken = searchParams.get('token');
 
-      if (!token || !userId) {
+      if (!tempToken) {
         setError('Invalid login link. Please check your email and try again.');
         setLoading(false);
         return;
       }
 
-      // Store the user token in localStorage for normal login
+      // Exchange temporary token for JWT
       if (typeof window !== 'undefined') {
         try {
           // Clear any impersonation flags first
@@ -36,13 +35,16 @@ function LoginLinkContent() {
           sessionStorage.removeItem('impersonatedUserId');
           localStorage.removeItem('impersonatedToken');
           localStorage.removeItem('impersonatedUserId');
+          localStorage.removeItem('token');
           
-          // Store in localStorage for persistent login
-          localStorage.setItem('token', token);
+          // Exchange temporary token for JWT token
+          const response = await api.verifyLoginToken(tempToken);
           
-          // Verify the token by calling the API first
-          await api.getUserProfile();
+          if (!response.data?.token || !response.data?.user) {
+            throw new Error('Invalid response from server');
+          }
           
+          // Token is already stored in localStorage by the API method
           // Mark as redirected immediately to prevent re-execution
           hasRedirected.current = true;
           setIsRedirecting(true);
@@ -58,7 +60,7 @@ function LoginLinkContent() {
         } catch (err: any) {
           // Clean up on error
           localStorage.removeItem('token');
-          setError(err.message || 'Failed to login. The link may have expired. Please try logging in manually.');
+          setError(err.message || 'Failed to login. The link may have expired or been used already. Please try logging in manually.');
           setLoading(false);
         }
       }

@@ -173,7 +173,7 @@ function SignupContent() {
               <>
                 <div>
                   <label htmlFor="email" className="block text-sm font-semibold text-black mb-2">
-                    Email (Optional)
+                    Email <span className="text-red-500">*</span>
                   </label>
                   <input
                     id="email"
@@ -183,11 +183,12 @@ function SignupContent() {
                     placeholder="Enter your email address"
                     value={formData.email}
                     onChange={handleChange}
+                    required
                   />
                 </div>
                 <div>
                   <label htmlFor="phone" className="block text-sm font-semibold text-black mb-2">
-                    Phone (Optional)
+                    Phone <span className="text-red-500">*</span>
                   </label>
                   <input
                     id="phone"
@@ -197,6 +198,7 @@ function SignupContent() {
                     placeholder="Enter your phone number"
                     value={formData.phone}
                     onChange={handleChange}
+                    required
                   />
                 </div>
                 <div>

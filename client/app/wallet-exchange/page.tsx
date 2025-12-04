@@ -184,7 +184,7 @@ export default function WalletExchangePage() {
                     <select
                       value={fromWalletType}
                       onChange={(e) => setFromWalletType(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-black bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                       required
                     >
                       <option value="">Select source wallet</option>
@@ -212,7 +212,7 @@ export default function WalletExchangePage() {
                     <select
                       value={toWalletType}
                       onChange={(e) => setToWalletType(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-black bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                       required
                     >
                       <option value="">Select destination wallet</option>
@@ -237,7 +237,7 @@ export default function WalletExchangePage() {
                       onChange={(e) => setAmount(e.target.value)}
                       min="0.01"
                       step="0.01"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-black bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                       placeholder="Enter amount"
                       required
                     />
@@ -260,7 +260,7 @@ export default function WalletExchangePage() {
                       onChange={(e) => setExchangeRate(e.target.value)}
                       min="0.01"
                       step="0.01"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-black bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                       placeholder="1.0"
                     />
                     {amount && exchangeRate && (

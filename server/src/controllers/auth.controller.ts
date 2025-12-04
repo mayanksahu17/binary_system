@@ -5,6 +5,7 @@ import { User } from "../models/User";
 import { initializeUser } from "../services/userInit.service";
 import { generateNextUserId, findUserByUserId } from "../services/userId.service";
 import { sendSignupWelcomeEmail } from "../lib/mail-service/email.service";
+import { generateLoginToken, validateLoginToken } from "../services/login-token.service";
 
 /**
  * User Signup
@@ -167,9 +168,12 @@ export const userSignup = asyncHandler(async (req, res) => {
   // Send welcome email with login link if user has email
   if (user.email) {
     try {
-      // Generate login link URL
+      // Generate temporary login token (stored in Redis)
+      const tempToken = await generateLoginToken(user.userId, user._id.toString());
+      
+      // Generate login link URL with temporary token
       const clientUrl = process.env.CLIENT_URL || process.env.FRONTEND_URL || 'http://localhost:3000';
-      const loginLink = `${clientUrl}/login-link?token=${encodeURIComponent(token)}&userId=${encodeURIComponent(user.userId)}`;
+      const loginLink = `${clientUrl}/login-link?token=${tempToken}`;
 
       // Send email asynchronously (don't wait for it)
       sendSignupWelcomeEmail({
@@ -345,15 +349,26 @@ export const getUserProfile = asyncHandler(async (req, res) => {
 });
 
 /**
- * Generate login link for user (used in email links)
- * GET /api/v1/auth/generate-login-link/:userId
+ * Exchange temporary login token for JWT token
+ * POST /api/v1/auth/verify-login-token
  */
-export const generateLoginLink = asyncHandler(async (req, res) => {
+export const verifyLoginToken = asyncHandler(async (req, res) => {
   try {
-    const { userId } = req.params;
+    const { token } = req.body;
 
-    // Find user by userId
-    const user = await findUserByUserId(userId);
+    if (!token) {
+      throw new AppError("Token is required", 400);
+    }
+
+    // Validate and get token data from Redis
+    const tokenData = await validateLoginToken(token);
+    
+    if (!tokenData) {
+      throw new AppError("Invalid or expired login token", 401);
+    }
+
+    // Find user by MongoDB ID
+    const user = await User.findById(tokenData.userMongoId);
     if (!user) {
       throw new AppError("User not found", 404);
     }
@@ -364,15 +379,23 @@ export const generateLoginLink = asyncHandler(async (req, res) => {
     }
 
     // Generate user JWT token
-    const token = signAuthToken({
+    const jwtToken = signAuthToken({
       sub: user._id.toString(),
       role: "buyer",
     });
 
+    // Set token in cookie
     const response = res as any;
+    response.cookie("token", jwtToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    });
+
     response.status(200).json({
       status: "success",
-      message: "Login link generated successfully",
+      message: "Login successful",
       data: {
         user: {
           id: user._id,
@@ -380,12 +403,15 @@ export const generateLoginLink = asyncHandler(async (req, res) => {
           name: user.name,
           email: user.email,
           phone: user.phone,
+          referrer: user.referrer,
+          position: user.position,
+          status: user.status,
         },
-        token,
+        token: jwtToken,
       },
     });
   } catch (error: any) {
-    throw new AppError(error.message || "Failed to generate login link", 500);
+    throw new AppError(error.message || "Failed to verify login token", 500);
   }
 });
 

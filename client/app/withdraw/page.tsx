@@ -257,7 +257,7 @@ export default function WithdrawPage() {
                         min="0.01"
                         max={availableBalance}
                         step="0.01"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md text-black bg-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                         placeholder="Enter amount"
                       />
                       <p className="mt-1 text-xs text-gray-500">
@@ -275,7 +275,7 @@ export default function WithdrawPage() {
                       <select
                         value={withdrawMethod}
                         onChange={(e) => setWithdrawMethod(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md text-black bg-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                       >
                         <option value="regular">Regular</option>
                         <option value="crypto">Crypto</option>

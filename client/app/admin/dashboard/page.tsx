@@ -27,6 +27,8 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [cronLoading, setCronLoading] = useState(false);
+  const [nowpaymentsEnabled, setNowpaymentsEnabled] = useState<boolean | null>(null);
+  const [nowpaymentsLoading, setNowpaymentsLoading] = useState(false);
 
   // Route protection
   useEffect(() => {
@@ -46,6 +48,7 @@ export default function AdminDashboard() {
 
     if (isAdminUser || isAdminAccount) {
       fetchStatistics();
+      fetchNOWPaymentsStatus();
     }
   }, [user, admin]);
 
@@ -90,6 +93,46 @@ export default function AdminDashboard() {
       console.error('Error triggering cron:', err);
     } finally {
       setCronLoading(false);
+    }
+  };
+
+  const fetchNOWPaymentsStatus = async () => {
+    try {
+      const response = await api.getNOWPaymentsStatus();
+      if (response.data) {
+        setNowpaymentsEnabled(response.data.enabled);
+      }
+    } catch (err: any) {
+      console.error('Error fetching NOWPayments status:', err);
+      // Default to true if error (for backward compatibility)
+      setNowpaymentsEnabled(true);
+    }
+  };
+
+  const handleToggleNOWPayments = async () => {
+    if (nowpaymentsEnabled === null) return;
+
+    const newStatus = !nowpaymentsEnabled;
+    const confirmMessage = newStatus
+      ? 'Are you sure you want to enable NOWPayments gateway? Users will be able to make real payments.'
+      : 'Are you sure you want to disable NOWPayments gateway? Users will not be able to make payments until it is re-enabled.';
+
+    if (!confirm(confirmMessage)) {
+      return;
+    }
+
+    try {
+      setNowpaymentsLoading(true);
+      const response = await api.updateNOWPaymentsStatus(newStatus);
+      if (response.data) {
+        setNowpaymentsEnabled(response.data.enabled);
+        alert(`NOWPayments gateway ${newStatus ? 'enabled' : 'disabled'} successfully!`);
+      }
+    } catch (err: any) {
+      alert(err.message || 'Failed to update NOWPayments status');
+      console.error('Error updating NOWPayments status:', err);
+    } finally {
+      setNowpaymentsLoading(false);
     }
   };
 
@@ -151,6 +194,41 @@ export default function AdminDashboard() {
             {error}
           </div>
         )}
+
+        {/* Payment Gateway Settings */}
+        <div className="mb-6 bg-white rounded-lg shadow p-6">
+          <div className="flex justify-between items-center">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-1">Payment Gateway Settings</h3>
+              <p className="text-sm text-gray-600">Control NOWPayments gateway for development and testing</p>
+            </div>
+            <div className="flex items-center gap-4">
+              <span className={`text-sm font-medium ${nowpaymentsEnabled ? 'text-green-600' : 'text-red-600'}`}>
+                {nowpaymentsEnabled === null ? 'Loading...' : nowpaymentsEnabled ? 'Enabled' : 'Disabled'}
+              </span>
+              <button
+                onClick={handleToggleNOWPayments}
+                disabled={nowpaymentsEnabled === null || nowpaymentsLoading}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${
+                  nowpaymentsEnabled ? 'bg-indigo-600' : 'bg-gray-300'
+                } ${(nowpaymentsEnabled === null || nowpaymentsLoading) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    nowpaymentsEnabled ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+          {nowpaymentsEnabled === false && (
+            <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded">
+              <p className="text-sm text-yellow-800">
+                <strong>Warning:</strong> NOWPayments gateway is disabled. Users will not be able to make payments until it is re-enabled.
+              </p>
+            </div>
+          )}
+        </div>
 
         {statistics && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

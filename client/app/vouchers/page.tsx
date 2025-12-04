@@ -246,7 +246,7 @@ export default function VouchersPage() {
                     onChange={(e) => setCreateAmount(e.target.value)}
                     min="0.01"
                     step="0.01"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-black bg-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                     placeholder="Enter amount"
                   />
                 </div>
@@ -257,7 +257,7 @@ export default function VouchersPage() {
                   <select
                     value={fromWalletType}
                     onChange={(e) => setFromWalletType(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-black bg-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                   >
                     <option value="">Create without wallet (Free voucher)</option>
                     {wallets.map((wallet) => (

@@ -17,15 +17,15 @@ export default function LoginPage() {
   // Redirect after successful login - use replace to avoid history issues
   useEffect(() => {
     if (!authLoading) {
-      if (admin) {
-        // Admin account login
+    if (admin) {
+      // Admin account login
         router.replace('/admin/dashboard');
-      } else if (user) {
-        // Regular user login
-        if (user.userId === 'CROWN-000000') {
-          // CROWN-000000 user should be redirected to admin dashboard
+    } else if (user) {
+      // Regular user login
+      if (user.userId === 'CROWN-000000') {
+        // CROWN-000000 user should be redirected to admin dashboard
           router.replace('/admin/dashboard');
-        } else {
+      } else {
           router.replace('/dashboard');
         }
       }
@@ -105,16 +105,16 @@ export default function LoginPage() {
                 Password
               </label>
               <div className="relative">
-                <input
-                  id="password"
-                  name="password"
+              <input
+                id="password"
+                name="password"
                   type={showPassword ? "text" : "password"}
-                  required
+                required
                   className="appearance-none relative block w-full px-4 py-3 pr-12 border-2 border-gray-300 placeholder-gray-400 text-black bg-white rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all sm:text-sm"
                   placeholder="Enter your password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
                 <button
                   type="button"
                   className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-600 hover:text-black focus:outline-none transition-colors"

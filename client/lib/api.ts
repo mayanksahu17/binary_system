@@ -91,6 +91,19 @@ class ApiClient {
     });
   }
 
+  async verifyLoginToken(token: string) {
+    const response = await this.request<{ user: any; token: string }>('/auth/verify-login-token', {
+      method: 'POST',
+      body: JSON.stringify({ token }),
+    });
+    
+    if (response.data?.token && typeof window !== 'undefined') {
+      localStorage.setItem('token', response.data.token);
+    }
+    
+    return response;
+  }
+
   async userLogin(data: { email?: string; phone?: string; userId?: string; password: string }) {
     const response = await this.request<{ user: any; token: string }>('/auth/login', {
       method: 'POST',
@@ -220,10 +233,30 @@ class ApiClient {
     });
   }
 
-  async createInvestment(data: { packageId: string; amount: number; currency?: string }) {
+  async createInvestment(data: { packageId: string; amount: number; currency?: string; paymentId?: string }) {
     return this.request<{ investment: any; payment: any; wallets: any[]; binaryTree: any }>('/user/invest', {
       method: 'POST',
       body: JSON.stringify(data),
+    });
+  }
+
+  // NOWPayments integration
+  async createPayment(data: { packageId: string; amount: number; currency?: string }) {
+    return this.request<{ payment: any; orderId: string }>('/payment/create', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getPaymentStatus(paymentId: string) {
+    return this.request<{ payment: any }>(`/payment/status/${paymentId}`, {
+      method: 'GET',
+    });
+  }
+
+  async getPaymentByOrderId(orderId: string) {
+    return this.request<{ payment: any }>(`/payment/order/${orderId}`, {
+      method: 'GET',
     });
   }
 
@@ -404,6 +437,20 @@ class ApiClient {
     return this.request<{ roi: any; binary: any; referral: any }>('/admin/trigger-daily-calculations', {
       method: 'POST',
       body: JSON.stringify(data || {}),
+    });
+  }
+
+  // Settings management
+  async getNOWPaymentsStatus() {
+    return this.request<{ enabled: boolean }>('/admin/settings/nowpayments', {
+      method: 'GET',
+    });
+  }
+
+  async updateNOWPaymentsStatus(enabled: boolean) {
+    return this.request<{ enabled: boolean }>('/admin/settings/nowpayments', {
+      method: 'PUT',
+      body: JSON.stringify({ enabled }),
     });
   }
 }

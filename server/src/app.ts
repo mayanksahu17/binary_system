@@ -44,11 +44,13 @@ app.use((req, res, next) => {
 import authRoutes from './routes/auth.routes';
 import treeRoutes from './routes/tree.routes';
 import userRoutes from './routes/user.routes';
+import paymentRoutes from './routes/payment.routes';
 
 app.use("/api/v1/admin", adminRoutes);
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/tree", treeRoutes);
 app.use("/api/v1/user", userRoutes);
+app.use("/api/v1/payment", paymentRoutes);
 
 app.get('/health', asyncHandler(async (req, res) => {
     // Type assertion needed due to TypeScript type inference limitation with asyncHandler wrapper

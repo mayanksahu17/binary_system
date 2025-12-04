@@ -36,7 +36,7 @@ export default function PlansPage() {
   const [showInvestModal, setShowInvestModal] = useState(false);
   const [selectedPackage, setSelectedPackage] = useState<Package | null>(null);
   const [investAmount, setInvestAmount] = useState('');
-  const [investing, setInvesting] = useState(false);
+  const [creatingPayment, setCreatingPayment] = useState(false);
 
   useEffect(() => {
     fetchPackages();
@@ -56,40 +56,69 @@ export default function PlansPage() {
     }
   };
 
-  const handleInvest = async () => {
+  const handleInvestNow = (pkg: Package) => {
+    setSelectedPackage(pkg);
+    setInvestAmount(pkg.minAmount.toString());
+    setShowInvestModal(true);
+    setError('');
+  };
+
+  const handleCreatePayment = async () => {
     if (!selectedPackage || !investAmount) {
-      setError('Please select a package and enter amount');
+      setError('Please enter an investment amount');
       return;
     }
 
     const amount = parseFloat(investAmount);
+    if (isNaN(amount) || amount <= 0) {
+      setError('Please enter a valid amount');
+      return;
+    }
+
     if (amount < selectedPackage.minAmount || amount > selectedPackage.maxAmount) {
-      setError(`Amount must be between $${selectedPackage.minAmount} and $${selectedPackage.maxAmount}`);
+      setError(`Amount must be between $${selectedPackage.minAmount.toLocaleString()} and $${selectedPackage.maxAmount.toLocaleString()}`);
+      return;
+    }
+
+    if (selectedPackage.status !== 'Active') {
+      setError('This package is not active');
       return;
     }
 
     try {
-      setInvesting(true);
+      setCreatingPayment(true);
       setError('');
-      const response = await api.createInvestment({
+      
+      const response = await api.createPayment({
         packageId: selectedPackage.id,
         amount,
         currency: 'USD',
       });
 
-      if (response.data) {
-        setShowInvestModal(false);
-        setSelectedPackage(null);
-        setInvestAmount('');
-        alert('Investment successful! Redirecting to investments page...');
-        router.push('/investments');
+      if (response.data?.payment?.paymentUrl) {
+        // Redirect to NOWPayments payment page
+        console.log('Redirecting to NOWPayments:', response.data.payment.paymentUrl);
+        window.location.href = response.data.payment.paymentUrl;
+      } else {
+        // Check if we can construct payment URL from payment ID
+        if (response.data?.payment?.paymentId) {
+          const constructedUrl = `https://nowpayments.io/payment/?iid=${response.data.payment.paymentId}`;
+          console.log('Redirecting to NOWPayments (constructed URL):', constructedUrl);
+          window.location.href = constructedUrl;
+        } else if (response.data?.payment?.payAddress) {
+          setError('Payment address received but payment URL is not available. Please contact support with payment address: ' + response.data.payment.payAddress);
+        } else {
+          console.error('Payment response:', response);
+          setError('Failed to get payment URL. Please check the console for details or contact support.');
+        }
       }
     } catch (err: any) {
-      setError(err.message || 'Investment failed');
-    } finally {
-      setInvesting(false);
+      console.error('Payment creation error:', err);
+      setError(err.message || 'Failed to create payment. Please ensure NOWPayments is configured.');
+      setCreatingPayment(false);
     }
   };
+
 
   if (loading) {
     return (
@@ -233,18 +262,14 @@ export default function PlansPage() {
                     </div>
 
                     {/* Legacy ROI (if different from calculated) */}
-                    {pkg.roi && pkg.roi !== dailyRoiRate * 100 && (
+                    {/* {pkg.roi && pkg.roi !== dailyRoiRate * 100 && (
                       <div className="mb-4 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800">
                         <span className="font-medium">Legacy ROI:</span> {pkg.roi}%
                       </div>
-                    )}
+                    )} */}
 
                     <button
-                      onClick={() => {
-                        setSelectedPackage(pkg);
-                        setInvestAmount(pkg.minAmount.toString());
-                        setShowInvestModal(true);
-                      }}
+                      onClick={() => handleInvestNow(pkg)}
                       disabled={status !== 'Active'}
                       className="w-full px-4 py-3 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed font-semibold transition-all"
                     >
@@ -264,45 +289,25 @@ export default function PlansPage() {
             <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
               <div className="mt-3">
                 <h3 className="text-lg font-medium text-gray-900 mb-4">Make Investment</h3>
-                {selectedPackage && (
-                  <div className="mb-4 p-4 bg-indigo-50 rounded-lg border border-indigo-200">
-                    <h4 className="font-semibold text-gray-800 mb-3">{selectedPackage.packageName}</h4>
-                    <div className="grid grid-cols-2 gap-2 text-sm">
-                      <div>
-                        <span className="text-gray-600">Amount Range:</span>
-                        <span className="ml-2 font-medium">${selectedPackage.minAmount} - ${selectedPackage.maxAmount}</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-600">Duration:</span>
-                        <span className="ml-2 font-medium">{selectedPackage.duration} days</span>
-                      </div>
-                      {selectedPackage.totalOutputPct && (
-                        <div>
-                          <span className="text-gray-600">Total Output:</span>
-                          <span className="ml-2 font-medium text-green-600">{selectedPackage.totalOutputPct}%</span>
-                        </div>
-                      )}
-                      {selectedPackage.referralPct && (
-                        <div>
-                          <span className="text-gray-600">Referral Bonus:</span>
-                          <span className="ml-2 font-medium text-orange-600">{selectedPackage.referralPct}%</span>
-                        </div>
-                      )}
-                      {selectedPackage.binaryPct && (
-                        <div>
-                          <span className="text-gray-600">Binary Bonus:</span>
-                          <span className="ml-2 font-medium text-pink-600">{selectedPackage.binaryPct}%</span>
-                        </div>
-                      )}
-                      {selectedPackage.renewablePrinciplePct && (
-                        <div>
-                          <span className="text-gray-600">Renewable Principle:</span>
-                          <span className="ml-2 font-medium text-purple-600">{selectedPackage.renewablePrinciplePct}%</span>
-                        </div>
-                      )}
+                
+                <div className="mb-4 p-4 bg-indigo-50 rounded-lg border border-indigo-200">
+                  <h4 className="font-semibold text-gray-800 mb-2">{selectedPackage.packageName}</h4>
+                  <div className="text-sm text-gray-600 space-y-1">
+                    <div className="flex justify-between">
+                      <span>Amount Range:</span>
+                      <span className="font-medium">${selectedPackage.minAmount.toLocaleString()} - ${selectedPackage.maxAmount.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Duration:</span>
+                      <span className="font-medium">{selectedPackage.duration} days</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Total Output:</span>
+                      <span className="font-medium text-green-600">{(selectedPackage.totalOutputPct || 225)}%</span>
                     </div>
                   </div>
-                )}
+                </div>
+
                 <div className="mb-4">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Investment Amount (USD)
@@ -314,27 +319,35 @@ export default function PlansPage() {
                     min={selectedPackage.minAmount}
                     max={selectedPackage.maxAmount}
                     step="0.01"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                    placeholder="Enter amount"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-black bg-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                    placeholder={`Enter amount (${selectedPackage.minAmount} - ${selectedPackage.maxAmount})`}
                   />
                 </div>
+
+                {error && (
+                  <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded text-sm">
+                    {error}
+                  </div>
+                )}
+
                 <div className="flex justify-end space-x-3">
                   <button
                     onClick={() => {
                       setShowInvestModal(false);
                       setSelectedPackage(null);
                       setInvestAmount('');
+                      setError('');
                     }}
                     className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300"
                   >
                     Cancel
                   </button>
                   <button
-                    onClick={handleInvest}
-                    disabled={investing}
+                    onClick={handleCreatePayment}
+                    disabled={creatingPayment}
                     className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:opacity-50"
                   >
-                    {investing ? 'Processing...' : 'Invest'}
+                    {creatingPayment ? 'Creating Payment...' : 'Proceed to Payment'}
                   </button>
                 </div>
               </div>

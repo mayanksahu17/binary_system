@@ -13,6 +13,8 @@ import {
   approveWithdrawal,
   rejectWithdrawal,
   deleteUser,
+  getNOWPaymentsStatus,
+  updateNOWPaymentsStatus,
 } from "../controllers/admin.controller";
 import {
   getAllPackages,
@@ -58,5 +60,9 @@ router.get("/statistics", requireAdminAuth, getAdminStatistics);
 router.get("/withdrawals", requireAdminAuth, getAllWithdrawals);
 router.post("/withdrawals/:id/approve", requireAdminAuth, approveWithdrawal);
 router.post("/withdrawals/:id/reject", requireAdminAuth, rejectWithdrawal);
+
+// Settings management
+router.get("/settings/nowpayments", requireAdminAuth, getNOWPaymentsStatus);
+router.put("/settings/nowpayments", requireAdminAuth, updateNOWPaymentsStatus);
 
 export default router;
