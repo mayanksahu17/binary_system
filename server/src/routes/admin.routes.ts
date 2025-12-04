@@ -14,6 +14,8 @@ import {
   rejectWithdrawal,
   deleteUser,
   flushAllInvestments,
+  getNOWPaymentsStatus,
+  updateNOWPaymentsStatus,
 } from "../controllers/admin.controller";
 import {
   getAllPackages,
@@ -62,5 +64,9 @@ router.post("/withdrawals/:id/reject", requireAdminAuth, rejectWithdrawal);
 
 // Investment management
 router.delete("/investments/flush-all", requireAdminAuth, flushAllInvestments);
+
+// Settings management
+router.get("/settings/nowpayments", requireAdminAuth, getNOWPaymentsStatus);
+router.put("/settings/nowpayments", requireAdminAuth, updateNOWPaymentsStatus);
 
 export default router;

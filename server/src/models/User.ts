@@ -18,6 +18,8 @@ export interface IUser extends Document {
     ifscCode?: string;
     accountHolderName?: string;
   };
+  passwordResetToken?: string;
+  passwordResetExpires?: Date;
   createdAt: Date;
   comparePassword(candidate: string): Promise<boolean>;
   // add KYC refs, profile urls etc
@@ -39,6 +41,8 @@ const UserSchema = new Schema<IUser>({
     ifscCode: { type: String },
     accountHolderName: { type: String },
   },
+  passwordResetToken: { type: String },
+  passwordResetExpires: { type: Date },
   createdAt: { type: Date, default: () => new Date() }
 }, { timestamps: true });
 

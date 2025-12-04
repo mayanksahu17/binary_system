@@ -32,6 +32,13 @@ const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS as string
 //     console.log(`Failed to kill process on port ${PORT} or no process found.`);
 // }
 
+app.get('/', (req, res) => {
+    res.send('Hello World');
+});
+app.get('/api/health', (req, res) => {
+    res.json({ status: 'success', message: 'API OK' });
+  });
+  
 connectdb()
     .then(() => {
         // Setup cron jobs
@@ -47,4 +54,4 @@ connectdb()
     })
     .catch((error) => {
         console.log("❌ MongoDB connection failed: " + error);
-    });
+});

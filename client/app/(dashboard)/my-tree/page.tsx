@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState, useCallback, useMemo, memo } from 'react';
-import ProtectedRoute from '@/components/ProtectedRoute';
 import ReactFlow, {
   Node,
   Edge,
@@ -358,27 +357,22 @@ export default function MyTreePage() {
 
   if (loading) {
     return (
-      <ProtectedRoute requireUser>
-        <div className="flex min-h-screen items-center justify-center">
+      <div className="flex items-center justify-center py-12">
           <div className="text-xl">Loading tree data...</div>
         </div>
-      </ProtectedRoute>
     );
   }
 
   if (error) {
     return (
-      <ProtectedRoute requireUser>
-        <div className="flex min-h-screen items-center justify-center">
+      <div className="flex items-center justify-center py-12">
           <div className="text-xl text-red-500">Error: {error}</div>
         </div>
-      </ProtectedRoute>
     );
   }
 
   return (
-    <ProtectedRoute requireUser>
-      <div className="h-screen w-screen flex flex-col bg-gradient-to-br from-purple-500 via-purple-600 to-purple-700">
+    <div className="w-full h-[calc(100vh-8rem)] flex flex-col bg-gradient-to-br from-purple-500 via-purple-600 to-purple-700 rounded-lg overflow-hidden">
         <div className="bg-white shadow-lg p-4 z-10">
           <div className="flex justify-between items-center">
             <div>
@@ -564,7 +558,6 @@ export default function MyTreePage() {
           }
         `}</style>
       </div>
-    </ProtectedRoute>
   );
 }
 

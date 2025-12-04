@@ -202,8 +202,8 @@ export default function TreePage() {
     const fetchTreeData = async () => {
       try {
         setLoading(true);
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001';
-        const response = await fetch(`${apiUrl}/api/v1/tree/view`);
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://13.48.131.244:5001/api/v1';
+        const response = await fetch(`${apiUrl}/tree/view`);
         if (!response.ok) {
           throw new Error('Failed to fetch tree data');
         }

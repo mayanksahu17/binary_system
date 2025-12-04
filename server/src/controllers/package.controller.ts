@@ -74,13 +74,20 @@ export const createPackage = asyncHandler(async (req, res) => {
     packageName,
     minAmount,
     maxAmount,
-    roi,
     duration,
+    status,
+    // Legacy fields
+    roi,
     binaryBonus,
     cappingLimit,
     principleReturn,
     levelOneReferral,
-    status,
+    // New fields
+    totalOutputPct,
+    binaryPct,
+    powerCapacity,
+    renewablePrinciplePct,
+    referralPct,
   } = body;
 
   // Validation
@@ -93,28 +100,64 @@ export const createPackage = asyncHandler(async (req, res) => {
   if (parseFloat(minAmount) >= parseFloat(maxAmount)) {
     throw new AppError("Max amount must be greater than min amount", 400);
   }
-  if (roi === undefined || roi < 0) {
-    throw new AppError("ROI must be a positive number", 400);
-  }
   if (duration === undefined || duration < 1) {
     throw new AppError("Duration must be at least 1 day", 400);
   }
 
-  // Create package
-  const pkg = await Package.create({
+  // Use new fields if provided, otherwise fall back to legacy fields
+  const totalOutput = totalOutputPct !== undefined ? Number(totalOutputPct) : (roi !== undefined ? Number(roi) : 225);
+  const binaryPercent = binaryPct !== undefined ? Number(binaryPct) : (binaryBonus !== undefined ? Number(binaryBonus) : 10);
+  const powerCap = powerCapacity !== undefined ? powerCapacity : (cappingLimit !== undefined ? cappingLimit : "0");
+  const renewablePercent = renewablePrinciplePct !== undefined ? Number(renewablePrinciplePct) : (principleReturn !== undefined ? Number(principleReturn) : 50);
+  const referralPercent = referralPct !== undefined ? Number(referralPct) : (levelOneReferral !== undefined ? Number(levelOneReferral) : 7);
+
+  // Prepare package data with both new and legacy fields for compatibility
+  const packageData: any = {
     packageName,
     minAmount: Types.Decimal128.fromString(minAmount.toString()),
     maxAmount: Types.Decimal128.fromString(maxAmount.toString()),
-    roi: Number(roi) || 0,
-    duration: Number(duration) || 0,
-    binaryBonus: Number(binaryBonus) || 0,
-    cappingLimit: cappingLimit
-      ? Types.Decimal128.fromString(cappingLimit.toString())
-      : Types.Decimal128.fromString("0"),
-    principleReturn: Number(principleReturn) || 0,
-    levelOneReferral: Number(levelOneReferral) || 0,
+    duration: Number(duration) || 150,
     status: status || "Active",
-  });
+    // New fields
+    totalOutputPct: totalOutput,
+    binaryPct: binaryPercent,
+    powerCapacity: Types.Decimal128.fromString(powerCap.toString()),
+    renewablePrinciplePct: renewablePercent,
+    referralPct: referralPercent,
+  };
+
+  // Add legacy fields if provided or use defaults from new fields
+  if (roi !== undefined) {
+    packageData.roi = Number(roi);
+  } else if (totalOutputPct === undefined) {
+    packageData.roi = totalOutput;
+  }
+
+  if (binaryBonus !== undefined) {
+    packageData.binaryBonus = Number(binaryBonus);
+  } else if (binaryPct === undefined) {
+    packageData.binaryBonus = binaryPercent;
+  }
+
+  if (cappingLimit !== undefined) {
+    packageData.cappingLimit = Types.Decimal128.fromString(cappingLimit.toString());
+  } else if (powerCapacity === undefined) {
+    packageData.cappingLimit = Types.Decimal128.fromString(powerCap.toString());
+  }
+
+  if (principleReturn !== undefined) {
+    packageData.principleReturn = Number(principleReturn);
+  } else if (renewablePrinciplePct === undefined) {
+    packageData.principleReturn = renewablePercent;
+  }
+
+  if (levelOneReferral !== undefined) {
+    packageData.levelOneReferral = Number(levelOneReferral);
+  } else if (referralPct === undefined) {
+    packageData.levelOneReferral = referralPercent;
+  }
+
+  const pkg = await Package.create(packageData);
 
   const response = res as any;
   response.status(201).json({
@@ -137,13 +180,20 @@ export const updatePackage = asyncHandler(async (req, res) => {
     packageName,
     minAmount,
     maxAmount,
-    roi,
     duration,
+    status,
+    // Legacy fields
+    roi,
     binaryBonus,
     cappingLimit,
     principleReturn,
     levelOneReferral,
-    status,
+    // New fields
+    totalOutputPct,
+    binaryPct,
+    powerCapacity,
+    renewablePrinciplePct,
+    referralPct,
   } = body;
 
   if (!Types.ObjectId.isValid(id)) {
@@ -155,20 +205,32 @@ export const updatePackage = asyncHandler(async (req, res) => {
     throw new AppError("Package not found", 404);
   }
 
-  // Update fields
+  // Update basic fields
   if (packageName !== undefined) pkg.packageName = packageName;
+  if (duration !== undefined) pkg.duration = Number(duration);
+  if (status !== undefined) pkg.status = status;
+
+  // Update amount fields
   if (minAmount !== undefined)
     pkg.minAmount = Types.Decimal128.fromString(minAmount.toString());
   if (maxAmount !== undefined)
     pkg.maxAmount = Types.Decimal128.fromString(maxAmount.toString());
+
+  // Update new fields (preferred)
+  if (totalOutputPct !== undefined) pkg.totalOutputPct = Number(totalOutputPct);
+  if (binaryPct !== undefined) pkg.binaryPct = Number(binaryPct);
+  if (powerCapacity !== undefined)
+    pkg.powerCapacity = Types.Decimal128.fromString(powerCapacity.toString());
+  if (renewablePrinciplePct !== undefined) pkg.renewablePrinciplePct = Number(renewablePrinciplePct);
+  if (referralPct !== undefined) pkg.referralPct = Number(referralPct);
+
+  // Update legacy fields (for backward compatibility)
   if (roi !== undefined) pkg.roi = Number(roi);
-  if (duration !== undefined) pkg.duration = Number(duration);
   if (binaryBonus !== undefined) pkg.binaryBonus = Number(binaryBonus);
   if (cappingLimit !== undefined)
     pkg.cappingLimit = Types.Decimal128.fromString(cappingLimit.toString());
   if (principleReturn !== undefined) pkg.principleReturn = Number(principleReturn);
   if (levelOneReferral !== undefined) pkg.levelOneReferral = Number(levelOneReferral);
-  if (status !== undefined) pkg.status = status;
 
   // Validate min/max if both are being updated
   if (minAmount !== undefined || maxAmount !== undefined) {

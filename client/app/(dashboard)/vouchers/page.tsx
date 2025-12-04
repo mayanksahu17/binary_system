@@ -1,10 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import ProtectedRoute from '@/components/ProtectedRoute';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
-import { useRouter } from 'next/navigation';
 
 interface Voucher {
   id: string;
@@ -21,8 +19,7 @@ interface Voucher {
 }
 
 export default function VouchersPage() {
-  const { user, logout } = useAuth();
-  const router = useRouter();
+  const { user } = useAuth();
   const [vouchers, setVouchers] = useState<Voucher[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -98,62 +95,33 @@ export default function VouchersPage() {
 
   if (loading) {
     return (
-      <ProtectedRoute requireUser>
-        <div className="min-h-screen flex items-center justify-center">
+      <div className="flex items-center justify-center py-12">
           <div className="text-center">
-            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-slate-600"></div>
             <p className="mt-4 text-gray-600">Loading vouchers...</p>
           </div>
         </div>
-      </ProtectedRoute>
     );
   }
 
   return (
-    <ProtectedRoute requireUser>
-      <div className="min-h-screen bg-gray-50">
-        <nav className="bg-white shadow">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between h-16">
-              <div className="flex items-center space-x-4">
-                <button
-                  onClick={() => router.push('/dashboard')}
-                  className="text-indigo-600 hover:text-indigo-800"
-                >
-                  ← Back to Dashboard
-                </button>
-                <h1 className="text-2xl font-bold text-gray-900">Vouchers</h1>
-              </div>
-              <div className="flex items-center space-x-4">
+    <div className="w-full">
+      <div className="mb-6 flex justify-between items-center">
+        <h1 className="text-3xl font-bold text-gray-900">Vouchers</h1>
                 <button
                   onClick={() => setShowCreateModal(true)}
-                  className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700"
+          className="px-4 py-2 text-sm font-medium text-white bg-slate-700 rounded-md hover:bg-slate-800"
                 >
                   + Create Voucher
                 </button>
-                <span className="text-sm text-gray-700">Welcome, {user?.name}</span>
-                <button
-                  onClick={() => {
-                    logout();
-                    router.push('/login');
-                  }}
-                  className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700"
-                >
-                  Logout
-                </button>
-              </div>
-            </div>
           </div>
-        </nav>
-
-        <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
           {error && (
             <div className="mb-4 bg-red-50 border border-red-400 text-red-700 px-4 py-3 rounded">
               {error}
             </div>
           )}
 
-          <div className="px-4 py-6 sm:px-0">
+      <div>
             {vouchers.length === 0 ? (
               <div className="bg-white rounded-lg shadow p-12 text-center">
                 <p className="text-gray-500 text-lg mb-4">No vouchers found</p>
@@ -227,7 +195,6 @@ export default function VouchersPage() {
                 })}
               </div>
             )}
-          </div>
         </div>
 
         {/* Create Voucher Modal */}
@@ -246,7 +213,7 @@ export default function VouchersPage() {
                     onChange={(e) => setCreateAmount(e.target.value)}
                     min="0.01"
                     step="0.01"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-black bg-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                     placeholder="Enter amount"
                   />
                 </div>
@@ -257,7 +224,7 @@ export default function VouchersPage() {
                   <select
                     value={fromWalletType}
                     onChange={(e) => setFromWalletType(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-black bg-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                   >
                     <option value="">Create without wallet (Free voucher)</option>
                     {wallets.map((wallet) => (
@@ -291,6 +258,5 @@ export default function VouchersPage() {
           </div>
         )}
       </div>
-    </ProtectedRoute>
   );
 }

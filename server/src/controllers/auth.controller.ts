@@ -4,6 +4,9 @@ import { signAuthToken } from "../utills/jwt";
 import { User } from "../models/User";
 import { initializeUser } from "../services/userInit.service";
 import { generateNextUserId, findUserByUserId } from "../services/userId.service";
+import { sendSignupWelcomeEmail, sendPasswordResetEmail } from "../lib/mail-service/email.service";
+import { generateLoginToken, validateLoginToken } from "../services/login-token.service";
+import crypto from "crypto";
 
 /**
  * User Signup
@@ -163,6 +166,32 @@ export const userSignup = asyncHandler(async (req, res) => {
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
   });
 
+  // Send welcome email with login link if user has email
+  if (user.email) {
+    try {
+      // Generate temporary login token (stored in Redis)
+      const tempToken = await generateLoginToken(user.userId, user._id.toString());
+      
+      // Generate login link URL with temporary token
+      const clientUrl = process.env.CLIENT_URL || process.env.FRONTEND_URL || 'http://localhost:3000';
+      const loginLink = `${clientUrl}/login-link?token=${tempToken}`;
+
+      // Send email asynchronously (don't wait for it)
+      sendSignupWelcomeEmail({
+        to: user.email,
+        name: user.name,
+        userId: user.userId,
+        loginLink,
+      }).catch((error) => {
+        // Log error but don't fail signup if email fails
+        console.error('Failed to send signup welcome email:', error);
+      });
+    } catch (error) {
+      // Log error but don't fail signup if email fails
+      console.error('Error preparing signup welcome email:', error);
+    }
+  }
+
   response.status(201).json({
     status: "success",
     message: "User created successfully",
@@ -317,6 +346,177 @@ export const getUserProfile = asyncHandler(async (req, res) => {
         createdAt: (user as any).createdAt,
       },
     },
+  });
+});
+
+/**
+ * Exchange temporary login token for JWT token
+ * POST /api/v1/auth/verify-login-token
+ */
+export const verifyLoginToken = asyncHandler(async (req, res) => {
+  try {
+    const { token } = req.body;
+
+    if (!token) {
+      throw new AppError("Token is required", 400);
+    }
+
+    // Validate and get token data from Redis
+    const tokenData = await validateLoginToken(token);
+    
+    if (!tokenData) {
+      throw new AppError("Invalid or expired login token", 401);
+    }
+
+    // Find user by MongoDB ID
+    const user = await User.findById(tokenData.userMongoId);
+    if (!user) {
+      throw new AppError("User not found", 404);
+    }
+
+    // Check if user account is active
+    if (user.status !== "active") {
+      throw new AppError(`User account is ${user.status}`, 403);
+    }
+
+    // Generate user JWT token
+    const jwtToken = signAuthToken({
+      sub: user._id.toString(),
+      role: "buyer",
+    });
+
+    // Set token in cookie
+    const response = res as any;
+    response.cookie("token", jwtToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    });
+
+    response.status(200).json({
+      status: "success",
+      message: "Login successful",
+      data: {
+        user: {
+          id: user._id,
+          userId: user.userId,
+          name: user.name,
+          email: user.email,
+          phone: user.phone,
+          referrer: user.referrer,
+          position: user.position,
+          status: user.status,
+        },
+        token: jwtToken,
+      },
+    });
+  } catch (error: any) {
+    throw new AppError(error.message || "Failed to verify login token", 500);
+  }
+});
+
+/**
+ * Forgot Password - Request password reset
+ * POST /api/v1/auth/forgot-password
+ */
+export const forgotPassword = asyncHandler(async (req, res) => {
+  const { email } = req.body;
+
+  // Validation
+  if (!email) {
+    throw new AppError("Email is required", 400);
+  }
+
+  // Validate email format
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    throw new AppError("Invalid email format", 400);
+  }
+
+  // Find user by email
+  const user = await User.findOne({ email: email.toLowerCase() });
+  
+  // Don't reveal if user exists or not (security best practice)
+  // Always return success message even if user doesn't exist
+  if (user && user.email) {
+    // Generate reset token
+    const resetToken = crypto.randomBytes(32).toString("hex");
+    const resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour from now
+
+    // Save reset token to user
+    user.passwordResetToken = resetToken;
+    user.passwordResetExpires = resetTokenExpiry;
+    await user.save();
+
+    // Generate reset link
+    const clientUrl = process.env.CLIENT_URL || process.env.FRONTEND_URL || 'http://localhost:3000';
+    const resetLink = `${clientUrl}/reset-password?token=${resetToken}`;
+
+    // Send password reset email asynchronously (non-blocking)
+    setImmediate(async () => {
+      try {
+        await sendPasswordResetEmail({
+          to: user.email!,
+          name: user.name || 'User',
+          resetLink,
+        });
+      } catch (emailError: any) {
+        console.error('Failed to send password reset email:', emailError.message);
+        // Don't fail the request if email fails
+      }
+    });
+  }
+
+  // Always return success to prevent email enumeration
+  const response = res as any;
+  response.status(200).json({
+    status: "success",
+    message: "If an account with that email exists, a password reset link has been sent.",
+  });
+});
+
+/**
+ * Reset Password - Reset password with token
+ * POST /api/v1/auth/reset-password
+ */
+export const resetPassword = asyncHandler(async (req, res) => {
+  const { token, password } = req.body;
+
+  // Validation
+  if (!token) {
+    throw new AppError("Reset token is required", 400);
+  }
+
+  if (!password) {
+    throw new AppError("Password is required", 400);
+  }
+
+  // Validate password strength
+  if (password.length < 8) {
+    throw new AppError("Password must be at least 8 characters long", 400);
+  }
+
+  // Find user by reset token and check if token is not expired
+  const user = await User.findOne({
+    passwordResetToken: token,
+    passwordResetExpires: { $gt: new Date() }, // Token must not be expired
+  });
+
+  if (!user) {
+    throw new AppError("Invalid or expired reset token", 400);
+  }
+
+  // Update password
+  user.password = password;
+  user.passwordResetToken = undefined;
+  user.passwordResetExpires = undefined;
+  await user.save();
+
+  const response = res as any;
+  response.status(200).json({
+    status: "success",
+    message: "Password has been reset successfully. You can now login with your new password.",
   });
 });
 
