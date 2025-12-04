@@ -4,6 +4,7 @@ import { signAuthToken } from "../utills/jwt";
 import { User } from "../models/User";
 import { initializeUser } from "../services/userInit.service";
 import { generateNextUserId, findUserByUserId } from "../services/userId.service";
+import { sendSignupWelcomeEmail } from "../lib/mail-service/email.service";
 
 /**
  * User Signup
@@ -163,6 +164,29 @@ export const userSignup = asyncHandler(async (req, res) => {
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
   });
 
+  // Send welcome email with login link if user has email
+  if (user.email) {
+    try {
+      // Generate login link URL
+      const clientUrl = process.env.CLIENT_URL || process.env.FRONTEND_URL || 'http://localhost:3000';
+      const loginLink = `${clientUrl}/login-link?token=${encodeURIComponent(token)}&userId=${encodeURIComponent(user.userId)}`;
+
+      // Send email asynchronously (don't wait for it)
+      sendSignupWelcomeEmail({
+        to: user.email,
+        name: user.name,
+        userId: user.userId,
+        loginLink,
+      }).catch((error) => {
+        // Log error but don't fail signup if email fails
+        console.error('Failed to send signup welcome email:', error);
+      });
+    } catch (error) {
+      // Log error but don't fail signup if email fails
+      console.error('Error preparing signup welcome email:', error);
+    }
+  }
+
   response.status(201).json({
     status: "success",
     message: "User created successfully",
@@ -318,5 +342,50 @@ export const getUserProfile = asyncHandler(async (req, res) => {
       },
     },
   });
+});
+
+/**
+ * Generate login link for user (used in email links)
+ * GET /api/v1/auth/generate-login-link/:userId
+ */
+export const generateLoginLink = asyncHandler(async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    // Find user by userId
+    const user = await findUserByUserId(userId);
+    if (!user) {
+      throw new AppError("User not found", 404);
+    }
+
+    // Check if user account is active
+    if (user.status !== "active") {
+      throw new AppError(`User account is ${user.status}`, 403);
+    }
+
+    // Generate user JWT token
+    const token = signAuthToken({
+      sub: user._id.toString(),
+      role: "buyer",
+    });
+
+    const response = res as any;
+    response.status(200).json({
+      status: "success",
+      message: "Login link generated successfully",
+      data: {
+        user: {
+          id: user._id,
+          userId: user.userId,
+          name: user.name,
+          email: user.email,
+          phone: user.phone,
+        },
+        token,
+      },
+    });
+  } catch (error: any) {
+    throw new AppError(error.message || "Failed to generate login link", 500);
+  }
 });
 
