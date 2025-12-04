@@ -5,6 +5,7 @@ import InvestmentPurchaseEmail from './mail-templates/investment-purchase';
 import WithdrawalCreatedEmail from './mail-templates/withdrawal-created';
 import WithdrawalApprovedEmail from './mail-templates/withdrawal-approved';
 import WithdrawalRejectedEmail from './mail-templates/withdrawal-rejected';
+import PasswordResetEmail from './mail-templates/password-reset';
 
 /**
  * Email Service
@@ -273,6 +274,43 @@ export const sendWithdrawalRejectedEmail = async ({
   } catch (error: any) {
     console.error(`❌ Failed to send withdrawal rejected email to ${to}:`, error.message);
     // Don't throw error - we don't want email failures to break withdrawal flow
+  }
+};
+
+interface SendPasswordResetEmailParams {
+  to: string;
+  name: string;
+  resetLink: string;
+}
+
+/**
+ * Send password reset email
+ */
+export const sendPasswordResetEmail = async ({
+  to,
+  name,
+  resetLink,
+}: SendPasswordResetEmailParams): Promise<void> => {
+  try {
+    const emailHtml = await render(
+      React.createElement(PasswordResetEmail, {
+        name,
+        resetLink,
+      })
+    );
+
+    const mailOptions = {
+      from: process.env.EMAIL_USER || 'noreply@cneox.com',
+      to,
+      subject: 'Reset Your Password - CNEOX',
+      html: emailHtml,
+    };
+
+    await auth.sendMail(mailOptions);
+    console.log(`✅ Password reset email sent to ${to}`);
+  } catch (error: any) {
+    console.error(`❌ Failed to send password reset email to ${to}:`, error.message);
+    // Don't throw error - we don't want email failures to break password reset flow
   }
 };
 

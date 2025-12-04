@@ -136,6 +136,19 @@ export default function LoginPage() {
             </div>
           </div>
 
+          <div className="flex items-center justify-between">
+            {!isAdmin && (
+              <div className="text-sm">
+                <a
+                  href="/forgot-password"
+                  className="font-semibold text-indigo-600 hover:text-indigo-700 transition-colors"
+                >
+                  Forgot password?
+                </a>
+              </div>
+            )}
+          </div>
+
           {/* <div className="flex items-center">
             <input
               id="is-admin"

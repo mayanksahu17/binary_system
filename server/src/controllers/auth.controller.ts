@@ -4,8 +4,9 @@ import { signAuthToken } from "../utills/jwt";
 import { User } from "../models/User";
 import { initializeUser } from "../services/userInit.service";
 import { generateNextUserId, findUserByUserId } from "../services/userId.service";
-import { sendSignupWelcomeEmail } from "../lib/mail-service/email.service";
+import { sendSignupWelcomeEmail, sendPasswordResetEmail } from "../lib/mail-service/email.service";
 import { generateLoginToken, validateLoginToken } from "../services/login-token.service";
+import crypto from "crypto";
 
 /**
  * User Signup
@@ -413,5 +414,109 @@ export const verifyLoginToken = asyncHandler(async (req, res) => {
   } catch (error: any) {
     throw new AppError(error.message || "Failed to verify login token", 500);
   }
+});
+
+/**
+ * Forgot Password - Request password reset
+ * POST /api/v1/auth/forgot-password
+ */
+export const forgotPassword = asyncHandler(async (req, res) => {
+  const { email } = req.body;
+
+  // Validation
+  if (!email) {
+    throw new AppError("Email is required", 400);
+  }
+
+  // Validate email format
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    throw new AppError("Invalid email format", 400);
+  }
+
+  // Find user by email
+  const user = await User.findOne({ email: email.toLowerCase() });
+  
+  // Don't reveal if user exists or not (security best practice)
+  // Always return success message even if user doesn't exist
+  if (user && user.email) {
+    // Generate reset token
+    const resetToken = crypto.randomBytes(32).toString("hex");
+    const resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour from now
+
+    // Save reset token to user
+    user.passwordResetToken = resetToken;
+    user.passwordResetExpires = resetTokenExpiry;
+    await user.save();
+
+    // Generate reset link
+    const clientUrl = process.env.CLIENT_URL || process.env.FRONTEND_URL || 'http://localhost:3000';
+    const resetLink = `${clientUrl}/reset-password?token=${resetToken}`;
+
+    // Send password reset email asynchronously (non-blocking)
+    setImmediate(async () => {
+      try {
+        await sendPasswordResetEmail({
+          to: user.email!,
+          name: user.name || 'User',
+          resetLink,
+        });
+      } catch (emailError: any) {
+        console.error('Failed to send password reset email:', emailError.message);
+        // Don't fail the request if email fails
+      }
+    });
+  }
+
+  // Always return success to prevent email enumeration
+  const response = res as any;
+  response.status(200).json({
+    status: "success",
+    message: "If an account with that email exists, a password reset link has been sent.",
+  });
+});
+
+/**
+ * Reset Password - Reset password with token
+ * POST /api/v1/auth/reset-password
+ */
+export const resetPassword = asyncHandler(async (req, res) => {
+  const { token, password } = req.body;
+
+  // Validation
+  if (!token) {
+    throw new AppError("Reset token is required", 400);
+  }
+
+  if (!password) {
+    throw new AppError("Password is required", 400);
+  }
+
+  // Validate password strength
+  if (password.length < 8) {
+    throw new AppError("Password must be at least 8 characters long", 400);
+  }
+
+  // Find user by reset token and check if token is not expired
+  const user = await User.findOne({
+    passwordResetToken: token,
+    passwordResetExpires: { $gt: new Date() }, // Token must not be expired
+  });
+
+  if (!user) {
+    throw new AppError("Invalid or expired reset token", 400);
+  }
+
+  // Update password
+  user.password = password;
+  user.passwordResetToken = undefined;
+  user.passwordResetExpires = undefined;
+  await user.save();
+
+  const response = res as any;
+  response.status(200).json({
+    status: "success",
+    message: "Password has been reset successfully. You can now login with your new password.",
+  });
 });
 
