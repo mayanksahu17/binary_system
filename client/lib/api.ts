@@ -1,6 +1,6 @@
 // API utility functions for making requests to the backend
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001/api/v1';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://13.48.131.244:5001/api/v1';
 
 export interface ApiResponse<T = any> {
   status: 'success' | 'error';
