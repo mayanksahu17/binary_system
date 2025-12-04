@@ -36,6 +36,7 @@ interface TreeUser {
   leftDownlines: number;
   rightDownlines: number;
   level: number;
+  totalInvestment?: string;
 }
 
 interface TreeData {
@@ -123,6 +124,9 @@ const CustomNode = memo(({ data }: { data: CustomNodeData }) => {
                 <div className="popup-item">
                   <strong>Total Children:</strong> {totalChildren || 0}
                 </div>
+                <div className="popup-item" style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #e5e7eb' }}>
+                  <strong>Total Investment:</strong> ${parseFloat(user.totalInvestment || '0').toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </div>
               </>
             ) : (
               <>
@@ -143,6 +147,9 @@ const CustomNode = memo(({ data }: { data: CustomNodeData }) => {
                 </div>
                 <div className="popup-item">
                   <strong>Right Downlines:</strong> {user.rightDownlines || 0}
+                </div>
+                <div className="popup-item" style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #e5e7eb' }}>
+                  <strong>Total Investment:</strong> ${parseFloat(user.totalInvestment || '0').toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </div>
               </>
             )}

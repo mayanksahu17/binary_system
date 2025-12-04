@@ -27,6 +27,7 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [cronLoading, setCronLoading] = useState(false);
+  const [flushLoading, setFlushLoading] = useState(false);
 
   // Route protection
   useEffect(() => {
@@ -93,6 +94,52 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleFlushInvestments = async () => {
+    const confirmMessage = '⚠️ WARNING: This will permanently delete ALL investments and related data for ALL users!\n\n' +
+      'This action will:\n' +
+      '• Delete all investments\n' +
+      '• Delete all ROI, Binary, and Referral transactions\n' +
+      '• Reset ROI, Binary, and Referral wallet balances to zero\n' +
+      '• Reset all binary tree business volumes to zero\n\n' +
+      'Users will NOT be deleted, but all their investment data will be lost.\n\n' +
+      'This action CANNOT be undone. Are you absolutely sure?';
+    
+    if (!confirm(confirmMessage)) {
+      return;
+    }
+
+    // Double confirmation
+    if (!confirm('FINAL CONFIRMATION: Are you 100% certain you want to flush all investment data?')) {
+      return;
+    }
+
+    try {
+      setFlushLoading(true);
+      setError('');
+      const response = await api.flushAllInvestments();
+      
+      if (response.data) {
+        alert(
+          `✅ All investments flushed successfully!\n\n` +
+          `• Investments deleted: ${response.data.investmentsDeleted}\n` +
+          `• Transactions deleted: ${response.data.transactionsDeleted}\n` +
+          `• ${response.data.walletsReset}\n` +
+          `• ${response.data.binaryTreesReset}`
+        );
+        // Refresh statistics after flush
+        setTimeout(() => {
+          fetchStatistics();
+        }, 1000);
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to flush investments');
+      alert(err.message || 'Failed to flush investments');
+      console.error('Error flushing investments:', err);
+    } finally {
+      setFlushLoading(false);
+    }
+  };
+
   const formatCurrency = (value: string | number) => {
     const num = typeof value === 'string' ? parseFloat(value) : value;
     return new Intl.NumberFormat('en-US', {
@@ -135,11 +182,18 @@ export default function AdminDashboard() {
               {cronLoading ? 'Processing...' : 'Trigger Daily Calculations'}
             </button>
             <button
+              onClick={handleFlushInvestments}
+              disabled={flushLoading}
+              className="px-6 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {flushLoading ? 'Flushing...' : 'Flush All Investments'}
+            </button>
+            <button
               onClick={async () => {
                 await logout(true);
                 router.push('/');
               }}
-              className="px-6 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+              className="px-6 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
             >
               Logout
             </button>

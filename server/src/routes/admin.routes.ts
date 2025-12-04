@@ -13,6 +13,7 @@ import {
   approveWithdrawal,
   rejectWithdrawal,
   deleteUser,
+  flushAllInvestments,
 } from "../controllers/admin.controller";
 import {
   getAllPackages,
@@ -58,5 +59,8 @@ router.get("/statistics", requireAdminAuth, getAdminStatistics);
 router.get("/withdrawals", requireAdminAuth, getAllWithdrawals);
 router.post("/withdrawals/:id/approve", requireAdminAuth, approveWithdrawal);
 router.post("/withdrawals/:id/reject", requireAdminAuth, rejectWithdrawal);
+
+// Investment management
+router.delete("/investments/flush-all", requireAdminAuth, flushAllInvestments);
 
 export default router;

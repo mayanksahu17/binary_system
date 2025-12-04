@@ -15,6 +15,10 @@
     "test:seedPlans": "ts-node -r dotenv/config src/scripts/seedPackages.ts",
     "test:full-system": "ts-node -r dotenv/config src/scripts/fullSystemTest.ts",
     "test:12-users": "ts-node -r dotenv/config src/scripts/test12Users.ts",
+    "test:binary-bonus": "ts-node -r dotenv/config src/scripts/testBinaryBonusFlow.ts",
+    "test:binary-scenarios": "ts-node -r dotenv/config src/scripts/testBinaryBonusScenarios.ts",
+    "test:carry-forward": "ts-node -r dotenv/config src/scripts/testCarryForwardFlush.ts",
+    "create:abc-users": "ts-node -r dotenv/config src/scripts/createABCUsers.ts",
     "migrate:investment-wallets": "ts-node -r dotenv/config src/scripts/addInvestmentWallets.ts",
     "recalculate:downlines": "ts-node -r dotenv/config src/scripts/recalculateDownlines.ts"
   },

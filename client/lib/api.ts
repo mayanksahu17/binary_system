@@ -356,6 +356,17 @@ class ApiClient {
     });
   }
 
+  async flushAllInvestments() {
+    return this.request<{
+      investmentsDeleted: number;
+      transactionsDeleted: number;
+      walletsReset: string;
+      binaryTreesReset: string;
+    }>('/admin/investments/flush-all', {
+      method: 'DELETE',
+    });
+  }
+
   async getAdminStatistics() {
     return this.request<{
       totalUsers: number;

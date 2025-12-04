@@ -5,11 +5,13 @@ import { calculateDailyBinaryBonuses } from "../services/investment.service";
 /**
  * Setup daily cron jobs
  * Per rule book order of operations:
- * 1. Process new activations (apply ACTIVATION ledger, pay REFERRAL_BONUS, add BV to tree)
- * 2. Aggregate new business volumes for the day (compute L_today and R_today)
- * 3. Compute binary matching (BINARY_BONUS) and update carries
- * 4. Compute ROI for each active investment (ROI_PAYOUT) and credit wallet (split renewable/cashable)
- * 5. Record ledger entries for all transactions
+ * 1. Deactivate expired investments
+ * 2. Compute binary matching (BINARY_BONUS) and update carries
+ * 3. Compute ROI for each active investment (ROI_PAYOUT) and credit wallet (split renewable/cashable)
+ * 4. Record ledger entries for all transactions
+ * 
+ * NOTE: Referral bonuses are NOT calculated in cron jobs.
+ * They are paid immediately when investments are activated (one-time payment via processInvestment).
  */
 export function setupROICron() {
   // Run daily at midnight (00:00)

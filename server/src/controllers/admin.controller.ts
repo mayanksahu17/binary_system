@@ -225,9 +225,12 @@ export const triggerROI = asyncHandler(async (req, res) => {
 });
 
 /**
- * Manually trigger all daily calculations: ROI, Binary, and Referral bonuses
+ * Manually trigger all daily calculations: ROI and Binary bonuses
  * POST /api/v1/admin/trigger-daily-calculations
  * Body: { includeROI: true, includeBinary: true, includeReferral: true }
+ * 
+ * NOTE: Referral bonuses are NOT calculated in cron jobs.
+ * They are paid immediately when investments are activated (one-time payment).
  */
 export const triggerDailyCalculations = asyncHandler(async (req, res) => {
   try {
@@ -278,73 +281,17 @@ export const triggerDailyCalculations = asyncHandler(async (req, res) => {
       }
     }
 
-    // 3. Process Referral Bonuses for investments that haven't been processed
+    // NOTE: Referral bonuses are NOT calculated in cron jobs
+    // Referral bonuses are paid IMMEDIATELY when investments are activated (one-time payment)
+    // They should NOT be recalculated daily like ROI or binary bonuses
     if (includeReferral) {
-      try {
-        const investmentsWithReferrers = await Investment.find({
-          isActive: true,
-          sponsor: { $exists: true, $ne: null },
-        })
-          .populate("packageId")
-          .populate("sponsor")
-          .lean();
-
-        let referralProcessed = 0;
-        let referralErrors = 0;
-
-        for (const investment of investmentsWithReferrers) {
-          try {
-            const sponsor = investment.sponsor as any;
-            const pkg = investment.packageId as any;
-            const amount = parseFloat(investment.investedAmount.toString());
-
-            if (!sponsor || !pkg) {
-              continue;
-            }
-
-            // Check if referral bonus was already processed (by checking transactions)
-            // For simplicity, we'll recalculate it
-            const referralPercentage = pkg.levelOneReferral || 0;
-
-            if (referralPercentage > 0) {
-              const referralBonus = amount * (referralPercentage / 100);
-
-              // Add referral bonus to sponsor's referral wallet
-              await updateWallet(
-                sponsor._id,
-                WalletType.REFERRAL,
-                referralBonus,
-                "add"
-              );
-
-              // Create referral transaction
-              await createReferralTransaction(
-                sponsor._id,
-                referralBonus,
-                (investment.user as any)?._id?.toString(),
-                investment._id.toString()
-              );
-
-              referralProcessed++;
-            }
-          } catch (error: any) {
-            console.error(`Error processing referral bonus for investment ${investment._id}:`, error);
-            referralErrors++;
-          }
-        }
-
-        results.referral = {
-          success: true,
-          processed: referralProcessed,
-          errors: referralErrors,
-          total: investmentsWithReferrers.length,
-        };
-      } catch (error: any) {
-        results.referral = {
-          success: false,
-          error: error.message || "Referral bonus calculation failed",
-        };
-      }
+      results.referral = {
+        success: true,
+        message: "Referral bonuses are paid immediately at investment activation, not in daily cron",
+        processed: 0,
+        errors: 0,
+        total: 0,
+      };
     }
 
     const response = res as any;
@@ -997,6 +944,75 @@ export const deleteUser = asyncHandler(async (req, res) => {
     });
   } catch (error: any) {
     throw new AppError(error.message || "Failed to delete user", 500);
+  }
+});
+
+/**
+ * Flush All Investments and Related Data
+ * DELETE /api/v1/admin/investments/flush-all
+ * This will delete all investments and reset related data (wallets, binary tree business volumes, transactions)
+ * but will keep users intact
+ */
+export const flushAllInvestments = asyncHandler(async (req, res) => {
+  try {
+    // 1. Delete all Investments
+    const investmentsResult = await Investment.deleteMany({});
+    const investmentsDeleted = investmentsResult.deletedCount || 0;
+
+    // 2. Delete all wallet transactions related to investments (ROI, Binary, Referral)
+    const transactionsResult = await WalletTransaction.deleteMany({
+      $or: [
+        { "meta.type": "roi" },
+        { "meta.type": "binary" },
+        { "meta.type": "referral" },
+        { "meta.type": "investment" },
+        { "meta.type": "activation" },
+      ],
+    });
+    const transactionsDeleted = transactionsResult.deletedCount || 0;
+
+    // 3. Reset all wallet balances (ROI, Binary, Referral wallets)
+    // Keep Investment and Withdrawal wallets as they might have deposits/withdrawals
+    await Wallet.updateMany(
+      { type: { $in: [WalletType.ROI, WalletType.BINARY, WalletType.REFERRAL] } },
+      {
+        $set: {
+          balance: Types.Decimal128.fromString("0"),
+          renewablePrincipal: Types.Decimal128.fromString("0"),
+          reserved: Types.Decimal128.fromString("0"),
+        },
+      }
+    );
+
+    // 4. Reset all BinaryTree business volumes and carry forwards
+    await BinaryTree.updateMany(
+      {},
+      {
+        $set: {
+          leftBusiness: Types.Decimal128.fromString("0"),
+          rightBusiness: Types.Decimal128.fromString("0"),
+          leftCarry: Types.Decimal128.fromString("0"),
+          rightCarry: Types.Decimal128.fromString("0"),
+          leftMatched: Types.Decimal128.fromString("0"),
+          rightMatched: Types.Decimal128.fromString("0"),
+          matchingDue: Types.Decimal128.fromString("0"),
+        },
+      }
+    );
+
+    const response = res as any;
+    response.status(200).json({
+      status: "success",
+      message: "All investments and related data flushed successfully",
+      data: {
+        investmentsDeleted,
+        transactionsDeleted,
+        walletsReset: "ROI, Binary, Referral wallets reset to zero",
+        binaryTreesReset: "All binary tree business volumes reset to zero",
+      },
+    });
+  } catch (error: any) {
+    throw new AppError(error.message || "Failed to flush investments", 500);
   }
 });
 

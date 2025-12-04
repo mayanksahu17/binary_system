@@ -16,7 +16,11 @@ import {
  * Calculate daily binary bonuses for all users
  * Per rule book: Active principal counts as business volume each day
  * This function processes all users and calculates binary bonuses using consumption model
- * Should be called daily by cron job
+ * Should be called daily by cron job (runs at end of day, just like ROI)
+ * 
+ * NOTE: Binary bonuses are NOT calculated immediately when investments are made.
+ * Only business volume (BV) is added immediately. Binary bonuses are calculated
+ * once per day via this cron job, similar to ROI calculations.
  */
 export async function calculateDailyBinaryBonuses() {
   try {
@@ -39,51 +43,10 @@ export async function calculateDailyBinaryBonuses() {
       "1000"
     );
 
-    // Get all active investments to calculate daily business volume from active principals
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    const activeInvestments = await Investment.find({
-      isActive: true,
-      $or: [
-        { endDate: { $gte: today } },
-        { expiresOn: { $gte: today } }, // Legacy field
-      ],
-    })
-      .populate("user")
-      .lean();
-
-    // Group investments by user and position to calculate daily business volume
-    const userDailyBusiness = new Map<string, { left: number; right: number }>();
-    
-    for (const investment of activeInvestments) {
-      const userId = (investment.user as any)?._id?.toString();
-      if (!userId) continue;
-
-      const principal = parseFloat(investment.principal?.toString() || investment.investedAmount.toString());
-      
-      // Get user's position in parent's tree
-      const user = await User.findById(userId).select("position referrer").lean();
-      if (!user) continue;
-
-      // Determine which leg this investment contributes to
-      // If user has a referrer, add to referrer's leg based on user's position
-      if (user.referrer) {
-        const referrerId = user.referrer.toString();
-        const position = (user.position as "left" | "right") || "left";
-        
-        if (!userDailyBusiness.has(referrerId)) {
-          userDailyBusiness.set(referrerId, { left: 0, right: 0 });
-        }
-        
-        const business = userDailyBusiness.get(referrerId)!;
-        if (position === "left") {
-          business.left += principal;
-        } else {
-          business.right += principal;
-        }
-      }
-    }
+    // NOTE: Business volume is already added to the tree when investments are created
+    // via addBusinessVolumeUpTree(). We don't need to add it again here.
+    // The daily binary bonus calculation should only calculate bonuses based on
+    // the existing business volume in the tree.
 
     for (const tree of allTrees) {
       try {
@@ -95,17 +58,12 @@ export async function calculateDailyBinaryBonuses() {
         const userIdStr = userId._id.toString();
         const userIdObj = new Types.ObjectId(userIdStr);
 
-        // Get daily business volume from active principals (per rule book)
-        const dailyBusiness = userDailyBusiness.get(userIdStr) || { left: 0, right: 0 };
-        
-        // Add daily business volume to tree (this represents active principal counting each day)
-        // Note: leftBusiness and rightBusiness are cumulative, so we add daily business to them
-        if (dailyBusiness.left > 0 || dailyBusiness.right > 0) {
-          await addBusinessVolume(userIdObj, dailyBusiness.left, "left");
-          await addBusinessVolume(userIdObj, dailyBusiness.right, "right");
-        }
+        // IMPORTANT: Business volume is already added when investments are created via addBusinessVolumeUpTree
+        // We should NOT add it again here. The daily calculation should only calculate bonuses based on
+        // the existing business volume in the tree.
+        // Business volume is cumulative and only increases when new investments are made, not daily.
 
-        // Get updated tree values after adding daily business
+        // Get current tree values (business volume was already added when investments were created)
         const updatedTree = await BinaryTree.findOne({ user: userIdObj });
         if (!updatedTree) continue;
 
@@ -273,62 +231,65 @@ export async function calculateBinaryBonus(
     let newLeftMatched = leftMatched;
     let newRightMatched = rightMatched;
 
-    // Left side consumption
-    if (cappedMatched > 0) {
-      // Consume from leftCarry first, then from unmatched business
-      if (leftCarry >= cappedMatched) {
-        // All from carry
-        newLeftCarry = leftCarry - cappedMatched;
-      } else {
-        // Some from carry, rest from unmatched business
-        const consumedFromCarry = leftCarry;
-        const consumedFromBusiness = cappedMatched - leftCarry;
-        newLeftCarry = 0; // All carry consumed
-        newLeftMatched = leftMatched + consumedFromBusiness;
-      }
-    } else {
-      newLeftCarry = leftCarry;
-    }
+        if (cappedMatched > 0) {
+          // Consumption model: consume matched amount from available volume
+          // Priority: consume from carry first, then from unmatched business
+          
+          // Left side consumption
+          if (leftCarry >= cappedMatched) {
+            // All matched amount consumed from carry
+            // No business consumed, so leftMatched stays the same
+            newLeftMatched = leftMatched;
+          } else {
+            // Some from carry, rest from unmatched business
+            const leftConsumedFromBusiness = cappedMatched - leftCarry;
+            newLeftMatched = leftMatched + leftConsumedFromBusiness;
+          }
 
-    // Right side consumption
-    if (cappedMatched > 0) {
-      // Consume from rightCarry first, then from unmatched business
-      if (rightCarry >= cappedMatched) {
-        // All from carry
-        newRightCarry = rightCarry - cappedMatched;
-      } else {
-        // Some from carry, rest from unmatched business
-        const consumedFromCarry = rightCarry;
-        const consumedFromBusiness = cappedMatched - rightCarry;
-        newRightCarry = 0; // All carry consumed
-        newRightMatched = rightMatched + consumedFromBusiness;
-      }
-    } else {
-      newRightCarry = rightCarry;
-    }
+          // Right side consumption
+          if (rightCarry >= cappedMatched) {
+            // All matched amount consumed from carry
+            // No business consumed, so rightMatched stays the same
+            newRightMatched = rightMatched;
+          } else {
+            // Some from carry, rest from unmatched business
+            const rightConsumedFromBusiness = cappedMatched - rightCarry;
+            newRightMatched = rightMatched + rightConsumedFromBusiness;
+          }
 
-    // Calculate leftover after matching and add to carry forward
-    // leftover = available - matched
-    const leftAfterMatch = leftAvailable - cappedMatched;
-    const rightAfterMatch = rightAvailable - cappedMatched;
+          // Calculate new carry forward: leftover available volume after matching
+          // Formula: newCarry = available - matched
+          // This ensures carry forward is properly flushed and replaced with leftover
+          // CRITICAL: This formula correctly flushes consumed carry forward
+          // When carry is consumed, it's subtracted from available, leaving only leftover unmatched business
+          newLeftCarry = Math.max(0, leftAvailable - cappedMatched);
+          newRightCarry = Math.max(0, rightAvailable - cappedMatched);
+        } else {
+          // No matching, preserve existing carry forward
+          // Unmatched business stays as unmatched (tracked via leftMatched/rightMatched)
+          newLeftCarry = leftCarry;
+          newRightCarry = rightCarry;
+        }
 
-    // The leftover goes to carry forward on the side that has excess
-    if (leftAfterMatch > rightAfterMatch) {
-      // Left side has leftover, add to leftCarry
-      newLeftCarry = newLeftCarry + (leftAfterMatch - rightAfterMatch);
-    } else if (rightAfterMatch > leftAfterMatch) {
-      // Right side has leftover, add to rightCarry
-      newRightCarry = newRightCarry + (rightAfterMatch - leftAfterMatch);
-    }
-
-    // Update binary tree
+    // Update binary tree atomically to avoid race conditions
     // IMPORTANT: leftBusiness and rightBusiness remain unchanged (cumulative)
-    userTree.leftCarry = Types.Decimal128.fromString(newLeftCarry.toString());
-    userTree.rightCarry = Types.Decimal128.fromString(newRightCarry.toString());
-    userTree.leftMatched = Types.Decimal128.fromString(newLeftMatched.toString());
-    userTree.rightMatched = Types.Decimal128.fromString(newRightMatched.toString());
-
-    await userTree.save();
+    // CRITICAL: Use findOneAndUpdate to ensure atomic update and avoid stale data issues
+    const updatedTree = await BinaryTree.findOneAndUpdate(
+      { user: userId },
+      {
+        $set: {
+          leftCarry: Types.Decimal128.fromString(newLeftCarry.toString()),
+          rightCarry: Types.Decimal128.fromString(newRightCarry.toString()),
+          leftMatched: Types.Decimal128.fromString(newLeftMatched.toString()),
+          rightMatched: Types.Decimal128.fromString(newRightMatched.toString()),
+        },
+      },
+      { new: true } // Return updated document
+    );
+    
+    if (!updatedTree) {
+      throw new AppError("Failed to update binary tree", 500);
+    }
 
     return {
       binaryBonus,
@@ -507,24 +468,51 @@ export async function processInvestment(
       investment._id.toString()
     );
 
-    // Process referral bonus for direct sponsor (level 1) - one-time at activation
-    if (user.referrer && !investment.referralPaid) {
-      await processReferralBonus(user.referrer, amount, pkg, investment._id.toString());
-      investment.referralPaid = true;
-      await investment.save();
+    // Process referral bonus for direct sponsor (level 1) - one-time per USER (not per investment)
+    // Referral bonus is paid IMMEDIATELY when investment is activated
+    // 
+    // IMPORTANT RULES:
+    // 1. Referral bonus should only be paid ONCE per user (on their first investment)
+    //    - If User B invests $100, User A gets referral bonus
+    //    - If User B invests again $500, User A does NOT get referral bonus again
+    //
+    // 2. Referral bonus goes to the direct referrer (sponsor), not the binary tree parent
+    //    - user.referrer is the person who invited them (the direct sponsor)
+    //    - Example: User A invites User D, even if D is placed under B or C in binary tree,
+    //      User A gets the referral bonus when D invests (not B or C)
+    //
+    if (user.referrer) {
+      // Check if this is the user's FIRST investment (referral bonus should only be paid once per user)
+      const existingInvestments = await Investment.find({ 
+        user: userId,
+        _id: { $ne: investment._id } // Exclude current investment
+      }).countDocuments();
+      
+      // Only pay referral bonus if this is the user's FIRST investment
+      if (existingInvestments === 0) {
+        // This is the user's first investment, pay referral bonus to their direct referrer (sponsor)
+        // Note: user.referrer is the person who invited them, not the binary tree parent
+        await processReferralBonus(user.referrer, amount, pkg, investment._id.toString());
+        
+        // Mark this investment as having referral bonus paid (for tracking)
+        investment.referralPaid = true;
+        await investment.save();
+      } else {
+        // User has made investments before, referral bonus already paid - skip
+        console.log(`[Investment] User ${userId} has existing investments, skipping referral bonus (already paid on first investment)`);
+      }
     }
 
-    // Process binary bonuses up the tree
-    // This will add BV to parent's business and calculate bonuses
-    await processBinaryBonusesUpTree(
+    // Add business volume up the tree (binary bonuses will be calculated daily via cron)
+    // This only adds BV to parent's business volume, does NOT calculate bonuses immediately
+    // Binary bonuses are calculated at end of day via cron job (just like ROI)
+    await addBusinessVolumeUpTree(
       userId, 
       amount, 
-      position, 
-      pkg, 
-      investment._id.toString()
+      position
     );
 
-    // Mark investment as binary updated
+    // Mark investment as binary updated (BV added, but bonus calculation happens in daily cron)
     investment.isBinaryUpdated = true;
     await investment.save();
 
@@ -538,22 +526,17 @@ export async function processInvestment(
 }
 
 /**
- * Process binary bonuses up the tree
- * This function traverses up the binary tree and distributes binary bonuses
- * When a user invests, we add BV to their parent's leg and calculate bonuses using consumption model
+ * Add business volume up the tree when a user invests
+ * This function traverses up the binary tree and adds BV to parent's legs
+ * Binary bonuses are NOT calculated here - they are calculated daily via cron job
+ * Only referral bonuses are calculated immediately at investment time
  */
-async function processBinaryBonusesUpTree(
+async function addBusinessVolumeUpTree(
   userId: Types.ObjectId,
   amount: number,
-  position: "left" | "right",
-  pkg: any,
-  investmentId?: string
+  position: "left" | "right"
 ) {
   try {
-    // Get package configuration for binary calculation
-    const binaryPct = pkg.binaryPct || pkg.binaryBonus || 10;
-    const powerCapacity = parseFloat(pkg.powerCapacity?.toString() || pkg.cappingLimit?.toString() || "1000");
-
     let currentUserId = userId;
 
     // Traverse up the tree starting from the investing user
@@ -578,39 +561,15 @@ async function processBinaryBonusesUpTree(
         const parentPosition = isLeftChild ? "left" : "right";
         
         // Add BV to parent's leg (Business Volume)
+        // Binary bonus will be calculated in daily cron job
         await addBusinessVolume(
           currentTree.parent,
           amount,
           parentPosition
         );
 
-        // Calculate binary bonus using consumption model
-        const binaryResult = await calculateBinaryBonus(
-          currentTree.parent,
-          binaryPct,
-          powerCapacity
-        );
-
-        // Add binary bonus to parent's binary wallet
-        if (binaryResult.binaryBonus > 0) {
-          await updateWallet(
-            currentTree.parent,
-            WalletType.BINARY,
-            binaryResult.binaryBonus,
-            "add"
-          );
-          
-          // Create binary transaction
-          await createBinaryTransaction(
-            currentTree.parent,
-            binaryResult.binaryBonus,
-            currentUserId.toString(),
-            investmentId
-          );
-        }
-
         // Move up to parent for next iteration
-        // Each level calculates its own bonus based on its children's business
+        // Each level gets BV added from their children's investments
         currentUserId = currentTree.parent;
       } else {
         // Check if parent is admin (has unlimited children via parent relationship)
@@ -632,8 +591,8 @@ async function processBinaryBonusesUpTree(
       }
     }
   } catch (error) {
-    console.error("Error processing binary bonuses up tree:", error);
-    // Don't throw, just log - we don't want to fail the investment if bonus distribution fails
+    console.error("Error adding business volume up tree:", error);
+    // Don't throw, just log - we don't want to fail the investment if BV addition fails
   }
 }
 

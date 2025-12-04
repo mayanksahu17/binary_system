@@ -2,6 +2,7 @@ import { asyncHandler } from "../utills/asyncHandler";
 import { AppError } from "../utills/AppError";
 import { User } from "../models/User";
 import { BinaryTree } from "../models/BinaryTree";
+import { Investment } from "../models/Investment";
 import { Types } from "mongoose";
 
 /**
@@ -208,6 +209,12 @@ export const getMyTree = asyncHandler(async (req, res) => {
       }
     }
 
+    // Calculate total investment for this user
+    const investments = await Investment.find({ user: nodeUserId }).select("investedAmount").lean();
+    const totalInvestmentAmount = investments.reduce((sum, inv) => {
+      return sum + parseFloat(inv.investedAmount?.toString() || "0");
+    }, 0);
+
     treeData.push({
       id: nodeIdStr,
       userId: (nodeUser as any).userId || "N/A",
@@ -230,6 +237,7 @@ export const getMyTree = asyncHandler(async (req, res) => {
       rightDownlines: nodeTree.rightDownlines || 0,
       allChildren: children,
       level,
+      totalInvestment: totalInvestmentAmount.toString(),
     });
 
     // Recursively process children
