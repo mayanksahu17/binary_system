@@ -2,6 +2,9 @@ import React from 'react';
 import { auth, render } from './nodemailer';
 import SignupWelcomeEmail from './mail-templates/signup-welcome';
 import InvestmentPurchaseEmail from './mail-templates/investment-purchase';
+import WithdrawalCreatedEmail from './mail-templates/withdrawal-created';
+import WithdrawalApprovedEmail from './mail-templates/withdrawal-approved';
+import WithdrawalRejectedEmail from './mail-templates/withdrawal-rejected';
 
 /**
  * Email Service
@@ -108,6 +111,168 @@ export const sendInvestmentPurchaseEmail = async ({
     console.error(`❌ Failed to send investment purchase email to ${to}:`, error.message);
     // Don't throw error - we don't want email failures to break investment flow
     // Log the error but allow investment to complete
+  }
+};
+
+interface SendWithdrawalCreatedEmailParams {
+  to: string;
+  name: string;
+  amount: number;
+  charges: number;
+  finalAmount: number;
+  walletType: string;
+  withdrawalId: string;
+  dashboardLink: string;
+}
+
+/**
+ * Send withdrawal created notification email
+ */
+export const sendWithdrawalCreatedEmail = async ({
+  to,
+  name,
+  amount,
+  charges,
+  finalAmount,
+  walletType,
+  withdrawalId,
+  dashboardLink,
+}: SendWithdrawalCreatedEmailParams): Promise<void> => {
+  try {
+    const emailHtml = await render(
+      React.createElement(WithdrawalCreatedEmail, {
+        name,
+        amount,
+        charges,
+        finalAmount,
+        walletType,
+        withdrawalId,
+        dashboardLink,
+      })
+    );
+
+    const mailOptions = {
+      from: process.env.EMAIL_USER || 'noreply@cneox.com',
+      to,
+      subject: `Withdrawal Request Submitted - $${amount.toFixed(2)}`,
+      html: emailHtml,
+    };
+
+    await auth.sendMail(mailOptions);
+    console.log(`✅ Withdrawal created email sent to ${to}`);
+  } catch (error: any) {
+    console.error(`❌ Failed to send withdrawal created email to ${to}:`, error.message);
+    // Don't throw error - we don't want email failures to break withdrawal flow
+  }
+};
+
+interface SendWithdrawalApprovedEmailParams {
+  to: string;
+  name: string;
+  amount: number;
+  charges: number;
+  finalAmount: number;
+  walletType: string;
+  withdrawalId: string;
+  transactionId: string;
+  dashboardLink: string;
+}
+
+/**
+ * Send withdrawal approved notification email
+ */
+export const sendWithdrawalApprovedEmail = async ({
+  to,
+  name,
+  amount,
+  charges,
+  finalAmount,
+  walletType,
+  withdrawalId,
+  transactionId,
+  dashboardLink,
+}: SendWithdrawalApprovedEmailParams): Promise<void> => {
+  try {
+    const emailHtml = await render(
+      React.createElement(WithdrawalApprovedEmail, {
+        name,
+        amount,
+        charges,
+        finalAmount,
+        walletType,
+        withdrawalId,
+        transactionId,
+        dashboardLink,
+      })
+    );
+
+    const mailOptions = {
+      from: process.env.EMAIL_USER || 'noreply@cneox.com',
+      to,
+      subject: `Withdrawal Approved - $${amount.toFixed(2)}`,
+      html: emailHtml,
+    };
+
+    await auth.sendMail(mailOptions);
+    console.log(`✅ Withdrawal approved email sent to ${to}`);
+  } catch (error: any) {
+    console.error(`❌ Failed to send withdrawal approved email to ${to}:`, error.message);
+    // Don't throw error - we don't want email failures to break withdrawal flow
+  }
+};
+
+interface SendWithdrawalRejectedEmailParams {
+  to: string;
+  name: string;
+  amount: number;
+  charges: number;
+  finalAmount: number;
+  walletType: string;
+  withdrawalId: string;
+  reason?: string;
+  dashboardLink: string;
+}
+
+/**
+ * Send withdrawal rejected notification email
+ */
+export const sendWithdrawalRejectedEmail = async ({
+  to,
+  name,
+  amount,
+  charges,
+  finalAmount,
+  walletType,
+  withdrawalId,
+  reason,
+  dashboardLink,
+}: SendWithdrawalRejectedEmailParams): Promise<void> => {
+  try {
+    const emailHtml = await render(
+      React.createElement(WithdrawalRejectedEmail, {
+        name,
+        amount,
+        charges,
+        finalAmount,
+        walletType,
+        withdrawalId,
+        reason,
+        dashboardLink,
+      })
+    );
+
+    const mailOptions = {
+      from: process.env.EMAIL_USER || 'noreply@cneox.com',
+      to,
+      subject: `Withdrawal Request Rejected - $${amount.toFixed(2)}`,
+      html: emailHtml,
+    };
+
+    await auth.sendMail(mailOptions);
+    console.log(`✅ Withdrawal rejected email sent to ${to}`);
+  } catch (error: any) {
+    console.error(`❌ Failed to send withdrawal rejected email to ${to}:`, error.message);
+    // Don't throw error - we don't want email failures to break withdrawal flow
   }
 };
 

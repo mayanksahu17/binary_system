@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface Statistics {
   totalUsers: number;
@@ -21,8 +21,7 @@ interface Statistics {
 }
 
 export default function AdminDashboard() {
-  const router = useRouter();
-  const { user, admin, loading: authLoading, logout } = useAuth();
+  const { user, admin, loading: authLoading } = useAuth();
   const [statistics, setStatistics] = useState<Statistics | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -30,17 +29,7 @@ export default function AdminDashboard() {
   const [nowpaymentsEnabled, setNowpaymentsEnabled] = useState<boolean | null>(null);
   const [nowpaymentsLoading, setNowpaymentsLoading] = useState(false);
 
-  // Route protection
-  useEffect(() => {
-    if (authLoading) return;
-
-    const isAdminUser = user?.userId === 'CROWN-000000';
-    const isAdminAccount = !!admin;
-
-    if (!isAdminUser && !isAdminAccount) {
-      router.push('/login');
-    }
-  }, [user, admin, authLoading, router]);
+  // Route protection is handled in layout
 
   useEffect(() => {
     const isAdminUser = user?.userId === 'CROWN-000000';
@@ -148,7 +137,7 @@ export default function AdminDashboard() {
 
   if (authLoading || loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="flex items-center justify-center py-12">
         <div className="text-center">
           <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
           <p className="mt-4 text-gray-600">Loading...</p>
@@ -157,36 +146,20 @@ export default function AdminDashboard() {
     );
   }
 
-  const isAdminUser = user?.userId === 'CROWN-000000';
-  const isAdminAccount = !!admin;
-
-  if (!isAdminUser && !isAdminAccount) {
-    return null;
-  }
-
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div className="w-full">
         <div className="mb-6 flex justify-between items-center">
-          <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
-          <div className="flex gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+          <p className="mt-1 text-sm text-gray-500">Overview of system statistics and controls</p>
+        </div>
             <button
               onClick={handleTriggerCron}
               disabled={cronLoading}
-              className="px-6 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-6 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {cronLoading ? 'Processing...' : 'Trigger Daily Calculations'}
             </button>
-            <button
-              onClick={async () => {
-                await logout(true);
-                router.push('/');
-              }}
-              className="px-6 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
-            >
-              Logout
-            </button>
-          </div>
         </div>
 
         {error && (
@@ -231,110 +204,137 @@ export default function AdminDashboard() {
         </div>
 
         {statistics && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {/* User Statistics */}
+          <>
+            {/* Summary Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
             <div className="bg-white rounded-lg shadow p-6">
-              <h3 className="text-lg font-semibold text-gray-700 mb-4">User Statistics</h3>
-              <div className="space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Total Users</span>
-                  <span className="font-bold text-gray-900">{statistics.totalUsers.toLocaleString()}</span>
+                <h3 className="text-sm font-medium text-gray-500 mb-2">Total Users</h3>
+                <p className="text-2xl font-bold text-gray-900">{statistics.totalUsers.toLocaleString()}</p>
+                <div className="mt-4 flex gap-4 text-xs">
+                  <span className="text-gray-600">Verified: <span className="font-semibold text-gray-900">{statistics.verifiedUsers.toLocaleString()}</span></span>
+                  <span className="text-gray-600">Unverified: <span className="font-semibold text-gray-900">{statistics.unverifiedUsers.toLocaleString()}</span></span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Verified Users</span>
-                  <span className="font-bold text-green-600">{statistics.verifiedUsers.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Unverified Users</span>
-                  <span className="font-bold text-red-600">{statistics.unverifiedUsers.toLocaleString()}</span>
-                </div>
+              </div>
+
+              <div className="bg-white rounded-lg shadow p-6">
+                <h3 className="text-sm font-medium text-gray-500 mb-2">Total Deposits & Investment</h3>
+                <p className="text-2xl font-bold text-indigo-600">{formatCurrency(statistics.totalInvestment)}</p>
+                <p className="text-xs text-gray-500 mt-2">Combined deposits and investments</p>
+            </div>
+
+            <div className="bg-white rounded-lg shadow p-6">
+                <h3 className="text-sm font-medium text-gray-500 mb-2">Total Withdrawals</h3>
+                <p className="text-2xl font-bold text-gray-900">{formatCurrency(statistics.totalWithdrawals)}</p>
               </div>
             </div>
 
-            {/* Financial Statistics */}
+            {/* Charts Section */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+              {/* Investment Breakdown Chart */}
             <div className="bg-white rounded-lg shadow p-6">
-              <h3 className="text-lg font-semibold text-gray-700 mb-4">Financial Overview</h3>
-              <div className="space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Total Deposits</span>
-                  <span className="font-bold text-gray-900">{formatCurrency(statistics.totalDeposits)}</span>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Investment Breakdown</h3>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart
+                    data={[
+                      {
+                        name: 'Voucher',
+                        amount: parseFloat(statistics.totalVoucherInvestment),
+                      },
+                      {
+                        name: 'Free',
+                        amount: parseFloat(statistics.totalFreeInvestment),
+                      },
+                      {
+                        name: 'Powerleg',
+                        amount: parseFloat(statistics.totalPowerlegInvestment),
+                      },
+                    ]}
+                    margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis dataKey="name" stroke="#6b7280" />
+                    <YAxis 
+                      stroke="#6b7280"
+                      tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+                    />
+                    <Tooltip
+                      formatter={(value: number) => formatCurrency(value)}
+                      contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '6px' }}
+                    />
+                    <Bar dataKey="amount" fill="#4f46e5" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Total Withdrawals</span>
-                  <span className="font-bold text-gray-900">{formatCurrency(statistics.totalWithdrawals)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Total Investment</span>
-                  <span className="font-bold text-indigo-600">{formatCurrency(statistics.totalInvestment)}</span>
-                </div>
+
+              {/* Earnings Breakdown Chart */}
+              <div className="bg-white rounded-lg shadow p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Earnings Breakdown</h3>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart
+                    data={[
+                      {
+                        name: 'ROI',
+                        amount: parseFloat(statistics.totalROI),
+                      },
+                      {
+                        name: 'Referral',
+                        amount: parseFloat(statistics.totalReferralBonus),
+                      },
+                      {
+                        name: 'Binary',
+                        amount: parseFloat(statistics.totalBinaryBonus),
+                      },
+                    ]}
+                    margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis dataKey="name" stroke="#6b7280" />
+                    <YAxis 
+                      stroke="#6b7280"
+                      tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+                    />
+                    <Tooltip
+                      formatter={(value: number) => formatCurrency(value)}
+                      contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '6px' }}
+                    />
+                    <Bar dataKey="amount" fill="#6366f1" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
               </div>
             </div>
 
-            {/* Investment Breakdown */}
-            <div className="bg-white rounded-lg shadow p-6">
-              <h3 className="text-lg font-semibold text-gray-700 mb-4">Investment Breakdown</h3>
-              <div className="space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Voucher Investment</span>
-                  <span className="font-bold text-gray-900">{formatCurrency(statistics.totalVoucherInvestment)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Free Investment</span>
-                  <span className="font-bold text-gray-900">{formatCurrency(statistics.totalFreeInvestment)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Powerleg Investment</span>
-                  <span className="font-bold text-gray-900">{formatCurrency(statistics.totalPowerlegInvestment)}</span>
-                </div>
-              </div>
+            {/* Financial Flow Chart */}
+            <div className="bg-white rounded-lg shadow p-6 mb-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Financial Overview</h3>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart
+                  data={[
+                    { name: 'Deposits & Investment', amount: parseFloat(statistics.totalInvestment) },
+                    { name: 'Withdrawals', amount: parseFloat(statistics.totalWithdrawals) },
+                  ]}
+                  margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis dataKey="name" stroke="#6b7280" />
+                  <YAxis 
+                    stroke="#6b7280"
+                    tickFormatter={(value) => {
+                      if (value === 0) return '$0';
+                      if (value < 1000) return `$${value.toFixed(0)}`;
+                      return `$${(value / 1000).toFixed(1)}k`;
+                    }}
+                  />
+                  <Tooltip
+                    formatter={(value: number) => formatCurrency(value)}
+                    contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '6px' }}
+                  />
+                  <Bar dataKey="amount" fill="#4f46e5" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
             </div>
-
-            {/* Earnings */}
-            <div className="bg-white rounded-lg shadow p-6">
-              <h3 className="text-lg font-semibold text-gray-700 mb-4">Total Earnings</h3>
-              <div className="space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Total ROI</span>
-                  <span className="font-bold text-green-600">{formatCurrency(statistics.totalROI)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Referral Bonus</span>
-                  <span className="font-bold text-blue-600">{formatCurrency(statistics.totalReferralBonus)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Binary Bonus</span>
-                  <span className="font-bold text-purple-600">{formatCurrency(statistics.totalBinaryBonus)}</span>
-                </div>
-              </div>
-            </div>
-          </div>
+          </>
         )}
 
-        {/* Navigation Links */}
-        <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
-          <button
-            onClick={() => router.push('/admin')}
-            className="px-6 py-3 bg-white rounded-lg shadow hover:bg-gray-50 text-left"
-          >
-            <h3 className="font-semibold text-gray-900">User Management</h3>
-            <p className="text-sm text-gray-500 mt-1">View and manage all users</p>
-          </button>
-          <button
-            onClick={() => router.push('/admin/withdrawals')}
-            className="px-6 py-3 bg-white rounded-lg shadow hover:bg-gray-50 text-left"
-          >
-            <h3 className="font-semibold text-gray-900">Withdrawal Management</h3>
-            <p className="text-sm text-gray-500 mt-1">Approve or reject withdrawals</p>
-          </button>
-          <button
-            onClick={() => router.push('/admin/packages')}
-            className="px-6 py-3 bg-white rounded-lg shadow hover:bg-gray-50 text-left"
-          >
-            <h3 className="font-semibold text-gray-900">Package Management</h3>
-            <p className="text-sm text-gray-500 mt-1">Manage investment packages</p>
-          </button>
-        </div>
-      </div>
     </div>
   );
 }

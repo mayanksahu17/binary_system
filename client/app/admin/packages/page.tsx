@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
 
@@ -27,8 +26,7 @@ interface Package {
 }
 
 export default function PackagesPage() {
-  const router = useRouter();
-  const { user, admin, loading: authLoading, logout } = useAuth();
+  const { user, admin, loading: authLoading } = useAuth();
   const [packages, setPackages] = useState<Package[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -51,17 +49,7 @@ export default function PackagesPage() {
     levelOneReferral: 7,
   });
 
-  // Route protection
-  useEffect(() => {
-    if (authLoading) return;
-
-    const isAdminUser = user?.userId === 'CROWN-000000';
-    const isAdminAccount = !!admin;
-
-    if (!isAdminUser && !isAdminAccount) {
-      router.push('/login');
-    }
-  }, [user, admin, authLoading, router]);
+  // Route protection is handled in layout
 
   useEffect(() => {
     const isAdminUser = user?.userId === 'CROWN-000000';
@@ -238,7 +226,7 @@ export default function PackagesPage() {
 
   if (authLoading || loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="flex items-center justify-center py-12">
         <div className="text-center">
           <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
           <p className="mt-4 text-gray-600">Loading packages...</p>
@@ -247,44 +235,20 @@ export default function PackagesPage() {
     );
   }
 
-  const isAdminUser = user?.userId === 'CROWN-000000';
-  const isAdminAccount = !!admin;
-
-  if (!isAdminUser && !isAdminAccount) {
-    return null;
-  }
-
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="mb-6 flex justify-between items-center">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => router.push('/admin/dashboard')}
-              className="text-gray-600 hover:text-gray-900 transition-colors"
-            >
-              ← Back to Dashboard
-            </button>
-            <h1 className="text-3xl font-bold text-gray-900">Package Management</h1>
-          </div>
-          <div className="flex gap-4">
-            <button
-              onClick={() => handleOpenModal()}
-              className="px-6 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
-            >
-              + Add Package
-            </button>
-            <button
-              onClick={async () => {
-                await logout(true);
-                router.push('/');
-              }}
-              className="px-6 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-all"
-            >
-              Logout
-            </button>
-          </div>
+    <div className="w-full">
+      <div className="mb-6 flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Package Management</h1>
+          <p className="mt-1 text-sm text-gray-500">Create and manage investment packages</p>
         </div>
+        <button
+          onClick={() => handleOpenModal()}
+          className="px-6 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+        >
+          + Add Package
+        </button>
+      </div>
 
         {error && (
           <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
@@ -471,7 +435,6 @@ export default function PackagesPage() {
             </div>
           )}
         </div>
-      </div>
 
       {/* Create/Edit Modal */}
       {showModal && (

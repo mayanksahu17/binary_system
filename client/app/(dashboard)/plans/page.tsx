@@ -1,10 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import ProtectedRoute from '@/components/ProtectedRoute';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
-import { useRouter } from 'next/navigation';
 
 interface Package {
   id: string;
@@ -28,8 +26,7 @@ interface Package {
 }
 
 export default function PlansPage() {
-  const { user, logout } = useAuth();
-  const router = useRouter();
+  const { user } = useAuth();
   const [packages, setPackages] = useState<Package[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -122,50 +119,17 @@ export default function PlansPage() {
 
   if (loading) {
     return (
-      <ProtectedRoute requireUser>
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="text-center">
-            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
-            <p className="mt-4 text-gray-600">Loading packages...</p>
+          <div className="flex items-center justify-center py-12">
+            <div className="text-center">
+              <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-slate-600"></div>
+              <p className="mt-4 text-gray-600">Loading packages...</p>
+            </div>
           </div>
-        </div>
-      </ProtectedRoute>
     );
   }
 
   return (
-    <ProtectedRoute requireUser>
-      <div className="min-h-screen bg-gray-50">
-        {/* Header */}
-        <nav className="bg-white shadow">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between h-16">
-              <div className="flex items-center space-x-4">
-                <button
-                  onClick={() => router.push('/dashboard')}
-                  className="text-indigo-600 hover:text-indigo-800"
-                >
-                  ← Back to Dashboard
-                </button>
-                <h1 className="text-2xl font-bold text-gray-900">Investment Plans</h1>
-              </div>
-              <div className="flex items-center space-x-4">
-                <span className="text-sm text-gray-700">Welcome, {user?.name}</span>
-                <button
-                  onClick={() => {
-                    logout();
-                    router.push('/login');
-                  }}
-                  className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700"
-                >
-                  Logout
-                </button>
-              </div>
-            </div>
-          </div>
-        </nav>
-
-        <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+        <div className="w-full">
           {error && (
             <div className="mb-4 bg-red-50 border border-red-400 text-red-700 px-4 py-3 rounded">
               {error}
@@ -281,7 +245,6 @@ export default function PlansPage() {
               </div>
             </div>
           )}
-        </div>
 
         {/* Investment Modal */}
         {showInvestModal && selectedPackage && (
@@ -354,8 +317,7 @@ export default function PlansPage() {
             </div>
           </div>
         )}
-      </div>
-    </ProtectedRoute>
+    </div>
   );
 }
 

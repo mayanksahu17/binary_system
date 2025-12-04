@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
 
@@ -25,7 +24,6 @@ interface Withdrawal {
 }
 
 export default function AdminWithdrawals() {
-  const router = useRouter();
   const { user, admin, loading: authLoading } = useAuth();
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
   const [loading, setLoading] = useState(true);
@@ -35,17 +33,7 @@ export default function AdminWithdrawals() {
   const [pagination, setPagination] = useState({ total: 0, pages: 0, limit: 50 });
   const [processingId, setProcessingId] = useState<string | null>(null);
 
-  // Route protection
-  useEffect(() => {
-    if (authLoading) return;
-
-    const isAdminUser = user?.userId === 'CROWN-000000';
-    const isAdminAccount = !!admin;
-
-    if (!isAdminUser && !isAdminAccount) {
-      router.push('/login');
-    }
-  }, [user, admin, authLoading, router]);
+  // Route protection is handled in layout
 
   useEffect(() => {
     const isAdminUser = user?.userId === 'CROWN-000000';
@@ -86,7 +74,10 @@ export default function AdminWithdrawals() {
       setProcessingId(withdrawalId);
       await api.approveWithdrawal(withdrawalId);
       alert('Withdrawal approved successfully!');
-      fetchWithdrawals();
+      // Reset filter to show all withdrawals including the newly approved one
+      setStatusFilter('');
+      setPage(1);
+      await fetchWithdrawals();
     } catch (err: any) {
       alert(err.message || 'Failed to approve withdrawal');
       console.error('Error approving withdrawal:', err);
@@ -102,7 +93,10 @@ export default function AdminWithdrawals() {
       setProcessingId(withdrawalId);
       await api.rejectWithdrawal(withdrawalId, reason || undefined);
       alert('Withdrawal rejected successfully!');
-      fetchWithdrawals();
+      // Reset filter to show all withdrawals including the newly rejected one
+      setStatusFilter('');
+      setPage(1);
+      await fetchWithdrawals();
     } catch (err: any) {
       alert(err.message || 'Failed to reject withdrawal');
       console.error('Error rejecting withdrawal:', err);
@@ -147,7 +141,7 @@ export default function AdminWithdrawals() {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="flex items-center justify-center py-12">
         <div className="text-center">
           <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
           <p className="mt-4 text-gray-600">Loading...</p>
@@ -156,25 +150,12 @@ export default function AdminWithdrawals() {
     );
   }
 
-  const isAdminUser = user?.userId === 'CROWN-000000';
-  const isAdminAccount = !!admin;
-
-  if (!isAdminUser && !isAdminAccount) {
-    return null;
-  }
-
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="mb-6 flex justify-between items-center">
-          <h1 className="text-3xl font-bold text-gray-900">Withdrawal Management</h1>
-          <button
-            onClick={() => router.push('/admin/dashboard')}
-            className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300"
-          >
-            Back to Dashboard
-          </button>
-        </div>
+    <div className="w-full">
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold text-gray-900">Withdrawal Management</h1>
+        <p className="mt-1 text-sm text-gray-500">Approve or reject withdrawal requests</p>
+      </div>
 
         {/* Status Filter */}
         <div className="mb-6">
@@ -245,7 +226,7 @@ export default function AdminWithdrawals() {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {withdrawals.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
+                      <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
                         No withdrawals found
                       </td>
                     </tr>
@@ -256,6 +237,11 @@ export default function AdminWithdrawals() {
                           <div className="text-sm font-medium text-gray-900">{wd.userName}</div>
                           <div className="text-sm text-gray-500">{wd.userId}</div>
                           <div className="text-sm text-gray-500">{wd.userEmail}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-mono text-gray-600">
+                            {wd.withdrawalId || wd.id.substring(0, 8)}
+                          </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm font-semibold text-gray-900">{formatCurrency(wd.amount)}</div>
@@ -340,7 +326,6 @@ export default function AdminWithdrawals() {
           </div>
         )}
       </div>
-    </div>
   );
 }
 

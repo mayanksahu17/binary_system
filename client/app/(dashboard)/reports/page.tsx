@@ -1,10 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import ProtectedRoute from '@/components/ProtectedRoute';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
-import { useRouter } from 'next/navigation';
 
 interface Transaction {
   id: string;
@@ -32,8 +30,7 @@ interface Withdrawal {
 }
 
 export default function ReportsPage() {
-  const { user, logout } = useAuth();
-  const router = useRouter();
+  const { user } = useAuth();
   const [roiTransactions, setRoiTransactions] = useState<Transaction[]>([]);
   const [binaryTransactions, setBinaryTransactions] = useState<Transaction[]>([]);
   const [referralTransactions, setReferralTransactions] = useState<Transaction[]>([]);
@@ -130,13 +127,14 @@ export default function ReportsPage() {
   const renderWithdrawalTable = () => (
     <div className="bg-white rounded-lg shadow overflow-hidden">
       <div className="px-6 py-4 border-b border-gray-200">
-        <h3 className="text-lg font-semibold text-gray-900">Withdrawals</h3>
+        <h3 className="text-lg font-semibold text-gray-900">Withdrawal History</h3>
       </div>
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Withdrawal ID</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Charges</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Final Amount</th>
@@ -148,15 +146,18 @@ export default function ReportsPage() {
           <tbody className="bg-white divide-y divide-gray-200">
             {withdrawals.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
+                <td colSpan={8} className="px-6 py-4 text-center text-gray-500">
                   No withdrawals found
                 </td>
               </tr>
             ) : (
               withdrawals.map((wd) => (
-                <tr key={wd.id}>
+                <tr key={wd.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {new Date(wd.createdAt).toLocaleString()}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-600">
+                    {wd.withdrawalId || wd.id.substring(0, 8)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                     ${wd.amount.toFixed(2)}
@@ -167,11 +168,11 @@ export default function ReportsPage() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-green-600">
                     ${wd.finalAmount.toFixed(2)}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 capitalize">
                     {wd.walletType}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {wd.method}
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 capitalize">
+                    {wd.method || 'crypto'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
                     <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
@@ -193,56 +194,27 @@ export default function ReportsPage() {
 
   if (loading) {
     return (
-      <ProtectedRoute requireUser>
-        <div className="min-h-screen flex items-center justify-center">
+      <div className="flex items-center justify-center py-12">
           <div className="text-center">
-            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-slate-600"></div>
             <p className="mt-4 text-gray-600">Loading reports...</p>
           </div>
         </div>
-      </ProtectedRoute>
     );
   }
 
   return (
-    <ProtectedRoute requireUser>
-      <div className="min-h-screen bg-gray-50">
-        <nav className="bg-white shadow">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between h-16">
-              <div className="flex items-center space-x-4">
-                <button
-                  onClick={() => router.push('/dashboard')}
-                  className="text-indigo-600 hover:text-indigo-800"
-                >
-                  ← Back to Dashboard
-                </button>
-                <h1 className="text-2xl font-bold text-gray-900">Reports</h1>
-              </div>
-              <div className="flex items-center space-x-4">
-                <span className="text-sm text-gray-700">Welcome, {user?.name}</span>
-                <button
-                  onClick={() => {
-                    logout();
-                    router.push('/login');
-                  }}
-                  className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700"
-                >
-                  Logout
-                </button>
-              </div>
-            </div>
+    <div className="w-full">
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold text-gray-900">Reports</h1>
           </div>
-        </nav>
-
-        <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
           {error && (
             <div className="mb-4 bg-red-50 border border-red-400 text-red-700 px-4 py-3 rounded">
               {error}
             </div>
           )}
 
-          <div className="px-4 py-6 sm:px-0">
+      <div>
           {/* Tabs */}
           <div className="mb-6">
             <div className="border-b border-gray-200">
@@ -274,7 +246,5 @@ export default function ReportsPage() {
             {activeTab === 'withdrawal' && renderWithdrawalTable()}
           </div>
         </div>
-      </div>
-    </ProtectedRoute>
   );
 }

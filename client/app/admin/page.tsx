@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
 
@@ -18,8 +17,7 @@ interface User {
 }
 
 export default function AdminPanel() {
-  const router = useRouter();
-  const { user, admin, loading: authLoading, logout } = useAuth();
+  const { user, admin, loading: authLoading } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -29,18 +27,7 @@ export default function AdminPanel() {
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ userId: string; userName: string } | null>(null);
 
-  // Route protection: Only allow CROWN-000000 user or admin
-  useEffect(() => {
-    if (authLoading) return;
-
-    const isAdminUser = user?.userId === 'CROWN-000000';
-    const isAdminAccount = !!admin;
-
-    if (!isAdminUser && !isAdminAccount) {
-      // Redirect to login if not authorized
-      router.push('/login');
-    }
-  }, [user, admin, authLoading, router]);
+  // Route protection is handled in layout
 
   useEffect(() => {
     // Only fetch users if authorized
@@ -145,7 +132,7 @@ export default function AdminPanel() {
   // Show loading while checking auth
   if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="flex items-center justify-center py-12">
         <div className="text-center">
           <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
           <p className="mt-4 text-gray-600">Loading...</p>
@@ -154,54 +141,13 @@ export default function AdminPanel() {
     );
   }
 
-  // Check authorization
-  const isAdminUser = user?.userId === 'CROWN-000000';
-  const isAdminAccount = !!admin;
-
-  if (!isAdminUser && !isAdminAccount) {
-    return null; // Will redirect in useEffect
-  }
-
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="mb-6 flex justify-between items-center">
-          <h1 className="text-3xl font-bold text-gray-900">Admin Panel</h1>
-          <div className="flex gap-4">
-            <button
-              onClick={() => router.push('/admin/dashboard')}
-              className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
-            >
-              Dashboard
-            </button>
-            <button
-              onClick={() => router.push('/admin/withdrawals')}
-              className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
-            >
-              Withdrawals
-            </button>
-            <button
-              onClick={() => router.push('/admin/packages')}
-              className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
-            >
-              Packages
-            </button>
-            <button
-              onClick={async () => {
-                await logout(true);
-                router.push('/');
-              }}
-              className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
-            >
-              Logout
-            </button>
-          </div>
-        </div>
-        <div className="bg-white shadow rounded-lg">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
-            <p className="mt-1 text-sm text-gray-500">Manage and track all users in the system</p>
-          </div>
+    <div className="w-full">
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold text-gray-900">User Management</h1>
+        <p className="mt-1 text-sm text-gray-500">Manage and track all users in the system</p>
+      </div>
+      <div className="bg-white shadow rounded-lg">
 
           {/* Search Bar */}
           <div className="px-6 py-4 border-b border-gray-200">
@@ -389,7 +335,6 @@ export default function AdminPanel() {
             </div>
           )}
         </div>
-      </div>
 
       {/* Delete Confirmation Modal */}
       {deleteConfirm && (

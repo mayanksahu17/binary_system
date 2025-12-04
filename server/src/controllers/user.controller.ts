@@ -12,7 +12,7 @@ import { WalletType, WithdrawalStatus } from "../models/types";
 import { processInvestment } from "../services/investment.service";
 import { processMockPayment } from "../lib/payments/mock-nowpayments";
 import { exchangeWallets } from "../services/wallet-exchange.service";
-import { sendInvestmentPurchaseEmail } from "../lib/mail-service/email.service";
+import { sendInvestmentPurchaseEmail, sendWithdrawalCreatedEmail } from "../lib/mail-service/email.service";
 import { Types } from "mongoose";
 
 /**
@@ -584,6 +584,28 @@ export const createWithdrawal = asyncHandler(async (req, res) => {
     status: "pending",
     txRef: withdrawal._id.toString(),
     meta: { type: "withdrawal", withdrawalId: withdrawal._id.toString() },
+  });
+
+  // Send withdrawal created email notification asynchronously (non-blocking)
+  setImmediate(async () => {
+    try {
+      const clientUrl = process.env.CLIENT_URL || process.env.FRONTEND_URL || 'http://localhost:3000';
+      const dashboardLink = `${clientUrl}/withdraw`;
+      
+      await sendWithdrawalCreatedEmail({
+        to: user.email,
+        name: user.name,
+        amount: parseFloat(withdrawal.amount.toString()),
+        charges: parseFloat(withdrawal.charges.toString()),
+        finalAmount: parseFloat(withdrawal.finalAmount.toString()),
+        walletType: withdrawal.walletType,
+        withdrawalId: withdrawal._id.toString(),
+        dashboardLink,
+      });
+    } catch (emailError: any) {
+      console.error('Failed to send withdrawal created email:', emailError.message);
+      // Don't fail the withdrawal creation if email fails
+    }
   });
 
   const response = res as any;

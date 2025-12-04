@@ -1,10 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import ProtectedRoute from '@/components/ProtectedRoute';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
-import { useRouter } from 'next/navigation';
 
 interface Wallet {
   type: string;
@@ -26,7 +24,6 @@ const WALLET_TYPE_LABELS: Record<string, string> = {
 
 export default function WalletExchangePage() {
   const { user } = useAuth();
-  const router = useRouter();
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -129,47 +126,35 @@ export default function WalletExchangePage() {
 
   if (loading) {
     return (
-      <ProtectedRoute requireUser>
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="text-center">
-            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
-            <p className="mt-4 text-gray-600">Loading wallets...</p>
-          </div>
+      <div className="flex items-center justify-center py-12">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-slate-600"></div>
+          <p className="mt-4 text-gray-600">Loading wallets...</p>
         </div>
-      </ProtectedRoute>
+      </div>
     );
   }
 
   return (
-    <ProtectedRoute requireUser>
-      <div className="min-h-screen bg-gray-50 py-8">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          {/* Header */}
-          <div className="mb-6 flex justify-between items-center">
-            <h1 className="text-3xl font-bold text-gray-900">Wallet Exchange</h1>
-            <button
-              onClick={() => router.push('/dashboard')}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
-            >
-              Back to Dashboard
-            </button>
-          </div>
+    <div className="w-full">
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold text-gray-900">Wallet Exchange</h1>
+      </div>
+      {/* Error Message */}
+      {error && (
+        <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+          {error}
+        </div>
+      )}
 
-          {/* Error Message */}
-          {error && (
-            <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
-              {error}
-            </div>
-          )}
+      {/* Success Message */}
+      {success && (
+        <div className="mb-4 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded">
+          {success}
+        </div>
+      )}
 
-          {/* Success Message */}
-          {success && (
-            <div className="mb-4 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded">
-              {success}
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Exchange Form */}
             <div className="lg:col-span-2">
               <div className="bg-white rounded-lg shadow p-6">
@@ -316,9 +301,7 @@ export default function WalletExchangePage() {
               </div>
             </div>
           </div>
-        </div>
       </div>
-    </ProtectedRoute>
   );
 }
 

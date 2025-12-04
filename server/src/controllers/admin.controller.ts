@@ -20,6 +20,7 @@ import { triggerDailyCalculations as triggerDailyCalculationsCron } from "../cro
 import { Voucher } from "../models/Voucher";
 import { Ticket } from "../models/Ticket";
 import { Settings } from "../models/Settings";
+import { sendWithdrawalApprovedEmail, sendWithdrawalRejectedEmail } from "../lib/mail-service/email.service";
 
 /**
  * Admin Signup
@@ -824,6 +825,29 @@ export const approveWithdrawal = asyncHandler(async (req, res) => {
       },
     });
 
+    // Send withdrawal approved email notification asynchronously (non-blocking)
+    setImmediate(async () => {
+      try {
+        const clientUrl = process.env.CLIENT_URL || process.env.FRONTEND_URL || 'http://localhost:3000';
+        const dashboardLink = `${clientUrl}/withdraw`;
+        
+        await sendWithdrawalApprovedEmail({
+          to: user.email,
+          name: user.name,
+          amount: parseFloat(withdrawal.amount.toString()),
+          charges: parseFloat(withdrawal.charges.toString()),
+          finalAmount: parseFloat(withdrawal.finalAmount.toString()),
+          walletType: withdrawal.walletType,
+          withdrawalId: withdrawal.withdrawalId || withdrawal._id.toString(),
+          transactionId: withdrawal.withdrawalId || withdrawal._id.toString(),
+          dashboardLink,
+        });
+      } catch (emailError: any) {
+        console.error('Failed to send withdrawal approved email:', emailError.message);
+        // Don't fail the withdrawal approval if email fails
+      }
+    });
+
     const response = res as any;
     response.status(200).json({
       status: "success",
@@ -860,7 +884,7 @@ export const rejectWithdrawal = asyncHandler(async (req, res) => {
     }
 
     // Release reserved amount back to wallet
-    const user = await User.findById(withdrawal.user);
+    const user = await User.findById(withdrawal.user).select('email name');
     if (user) {
       const wallet = await Wallet.findOne({
         user: user._id,
@@ -879,6 +903,29 @@ export const rejectWithdrawal = asyncHandler(async (req, res) => {
     // Update withdrawal status
     withdrawal.status = WithdrawalStatus.REJECTED;
     await withdrawal.save();
+
+    // Send withdrawal rejected email notification asynchronously (non-blocking)
+    setImmediate(async () => {
+      try {
+        const clientUrl = process.env.CLIENT_URL || process.env.FRONTEND_URL || 'http://localhost:3000';
+        const dashboardLink = `${clientUrl}/withdraw`;
+        
+        await sendWithdrawalRejectedEmail({
+          to: user.email,
+          name: user.name,
+          amount: parseFloat(withdrawal.amount.toString()),
+          charges: parseFloat(withdrawal.charges.toString()),
+          finalAmount: parseFloat(withdrawal.finalAmount.toString()),
+          walletType: withdrawal.walletType,
+          withdrawalId: withdrawal._id.toString(),
+          reason: reason || undefined,
+          dashboardLink,
+        });
+      } catch (emailError: any) {
+        console.error('Failed to send withdrawal rejected email:', emailError.message);
+        // Don't fail the withdrawal rejection if email fails
+      }
+    });
 
     const response = res as any;
     response.status(200).json({
