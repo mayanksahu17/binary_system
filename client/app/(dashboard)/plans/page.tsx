@@ -392,6 +392,12 @@ export default function PlansPage() {
                       if (selectedVoucher) {
                         const voucherValue = selectedVoucher.investmentValue || selectedVoucher.amount * 2;
                         const investmentAmount = parseFloat(investAmount) || 0;
+                        // IMPORTANT: Voucher can cover ANY investment up to its investment value
+                        // Examples: $100 voucher (investment value $200) can cover:
+                        // - $100 investment ✅ (fully covered)
+                        // - $150 investment ✅ (fully covered)
+                        // - $200 investment ✅ (fully covered)
+                        // - $300 investment (partially covered - user pays $100)
                         const remainingAmount = Math.max(0, investmentAmount - voucherValue);
                         // Voucher covers full amount if investment amount is less than or equal to voucher investment value
                         const voucherCoversFull = investmentAmount > 0 && voucherValue >= investmentAmount;
@@ -406,19 +412,19 @@ export default function PlansPage() {
                               <span>Your Investment Amount:</span>
                               <span className="font-semibold text-gray-900">${investmentAmount.toLocaleString()}</span>
                             </div>
-                            {voucherCoversFull ? (
+                            {investmentAmount > 0 && voucherValue >= investmentAmount ? (
                               <div className="p-2 bg-green-50 border border-green-200 rounded">
                                 <div className="text-green-700 font-semibold flex items-center">
                                   <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
                                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                                   </svg>
-                                  Voucher fully covers your investment!
+                                  ✓ Voucher covers your investment!
                                 </div>
                                 <div className="text-xs text-green-600 mt-1">
-                                  No additional payment required. Investment will be activated immediately.
+                                  Your ${investmentAmount.toLocaleString()} investment is fully covered. No additional payment required.
                                 </div>
                               </div>
-                            ) : remainingAmount > 0 ? (
+                            ) : investmentAmount > voucherValue ? (
                               <div className="space-y-1">
                                 <div className="flex justify-between">
                                   <span>Remaining to Pay:</span>
