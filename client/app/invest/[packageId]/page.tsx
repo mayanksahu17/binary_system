@@ -310,7 +310,7 @@ function InvestContent() {
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Investment Amount</h3>
                 
                 {/* Voucher Selection */}
-                {availableVouchers.length > 0 && (
+                {availableVouchers.length > 0 ? (
                   <div className="mb-4 p-4 bg-green-50 rounded-lg border border-green-200">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Use Voucher (Optional)
