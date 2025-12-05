@@ -14,7 +14,7 @@ export default function AdminLayout({
   const pathname = usePathname();
   const { user, admin, loading: authLoading, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  
+
   // Close sidebar on mobile by default
   useEffect(() => {
     const handleResize = () => {
@@ -24,7 +24,7 @@ export default function AdminLayout({
         setSidebarOpen(true);
       }
     };
-    
+
     handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
@@ -88,7 +88,7 @@ export default function AdminLayout({
     )},
     { name: 'Vouchers', href: '/admin/vouchers', icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 5v2m0 4v2m0 4v2M12 3a9 9 0 110 18 9 9 0 010-18zM12 3v18" />
       </svg>
     )},
   ];
@@ -114,14 +114,12 @@ export default function AdminLayout({
           onClick={() => setSidebarOpen(false)}
         />
       )}
-      
+
       {/* Sidebar */}
       <aside
-        className={`${
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
-        } ${
-          sidebarOpen ? 'w-64' : 'md:w-20'
-        } bg-white border-r border-gray-200 transition-all duration-300 ease-in-out flex flex-col fixed h-screen z-30`}
+        className={`${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+          } ${sidebarOpen ? 'w-64' : 'md:w-20'
+          } bg-white border-r border-gray-200 transition-all duration-300 ease-in-out flex flex-col fixed h-screen z-30`}
       >
         {/* Logo/Header */}
         <div className="h-16 flex items-center justify-between px-4 border-b border-gray-200">
@@ -156,11 +154,10 @@ export default function AdminLayout({
               <Link
                 key={item.name}
                 href={item.href}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                  active
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${active
                     ? 'bg-indigo-50 text-indigo-700'
                     : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
-                }`}
+                  }`}
                 title={!sidebarOpen ? item.name : undefined}
               >
                 <span className={`flex-shrink-0 ${active ? 'text-indigo-600' : 'text-gray-500'}`}>

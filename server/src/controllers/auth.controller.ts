@@ -72,11 +72,12 @@ export const validateReferrer = asyncHandler(async (req, res) => {
  */
 export const userSignup = asyncHandler(async (req, res) => {
   const body = (req as any).body;
-  const { name, email, phone, password, referrerId, referrerUserId, position } = body as {
+  const { name, email, phone, password, country, referrerId, referrerUserId, position } = body as {
     name: string;
     email?: string;
     phone?: string;
     password: string;
+    country?: string;
     referrerId?: string; // MongoDB _id
     referrerUserId?: string; // CROWN-XXXXXX format
     position?: "left" | "right";
@@ -180,6 +181,7 @@ export const userSignup = asyncHandler(async (req, res) => {
     email: email ? email.toLowerCase() : undefined,
     phone: phone || undefined,
     password,
+    country: country || undefined,
     referrer: referrer?._id || null,
     position: finalPosition || null,
     status: "active",
@@ -396,6 +398,7 @@ export const getUserProfile = asyncHandler(async (req, res) => {
         name: user.name,
         email: user.email,
         phone: user.phone,
+        country: user.country,
         referrer: user.referrer,
         position: user.position,
         status: user.status,

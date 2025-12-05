@@ -14,6 +14,8 @@ import {
   getUserReferralLinks,
   exchangeWalletFunds,
   getUserCareerProgressController,
+  createTicket,
+  getUserTickets,
 } from "../controllers/user.controller";
 import { requireAuth } from "../middleware/auth.middleware";
 
@@ -34,6 +36,8 @@ router.put("/wallet-address", requireAuth, updateWalletAddress);
 router.get("/referral-links", requireAuth, getUserReferralLinks);
 router.post("/wallet-exchange", requireAuth, exchangeWalletFunds);
 router.get("/career-progress", requireAuth, getUserCareerProgressController);
+router.post("/tickets", requireAuth, createTicket);
+router.get("/tickets", requireAuth, getUserTickets);
 
 export default router;
 

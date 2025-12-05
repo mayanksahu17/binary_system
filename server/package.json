@@ -25,7 +25,8 @@
     "test:voucher-api": "ts-node -r dotenv/config src/scripts/testVoucherAPI.ts",
     "reset:admin-password": "ts-node -r dotenv/config src/scripts/resetAdminPassword.ts",
     "migrate:investment-wallets": "ts-node -r dotenv/config src/scripts/addInvestmentWallets.ts",
-    "recalculate:downlines": "ts-node -r dotenv/config src/scripts/recalculateDownlines.ts"
+    "recalculate:downlines": "ts-node -r dotenv/config src/scripts/recalculateDownlines.ts",
+    "create:children": "ts-node -r dotenv/config src/scripts/createLeftRightChildren.ts"
   },
   "mochaJunitReporterReporterOptions": {
     "mochaFile": "./test-results/junit.xml"

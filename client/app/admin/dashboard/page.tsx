@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useConfirm } from '@/contexts/ConfirmContext';
 import { api } from '@/lib/api';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import toast from 'react-hot-toast';
@@ -23,6 +24,7 @@ interface Statistics {
 
 export default function AdminDashboard() {
   const { user, admin, loading: authLoading } = useAuth();
+  const { confirm } = useConfirm();
   const [statistics, setStatistics] = useState<Statistics | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -60,9 +62,15 @@ export default function AdminDashboard() {
   };
 
   const handleTriggerCron = async () => {
-    if (!confirm('Are you sure you want to trigger the daily calculations (ROI, Binary, Referral)?')) {
-      return;
-    }
+    const confirmed = await confirm({
+      title: 'Trigger Daily Calculations',
+      message: 'Are you sure you want to trigger the daily calculations (ROI, Binary, Referral)?',
+      variant: 'info',
+      confirmText: 'Yes, Trigger',
+      cancelText: 'Cancel',
+    });
+
+    if (!confirmed) return;
 
     try {
       setCronLoading(true);
@@ -88,23 +96,22 @@ export default function AdminDashboard() {
   };
 
   const handleFlushInvestments = async () => {
-    const confirmMessage = '⚠️ WARNING: This will permanently delete ALL investments and related data for ALL users!\n\n' +
-      'This action will:\n' +
-      '• Delete all investments\n' +
-      '• Delete all ROI, Binary, and Referral transactions\n' +
-      '• Reset ROI, Binary, and Referral wallet balances to zero\n' +
-      '• Reset all binary tree business volumes to zero\n\n' +
-      'Users will NOT be deleted, but all their investment data will be lost.\n\n' +
-      'This action CANNOT be undone. Are you absolutely sure?';
-    
-    if (!confirm(confirmMessage)) {
-      return;
-    }
+    const confirmed = await confirm({
+      title: '⚠️ WARNING: Flush All Investments',
+      message: 'This will permanently delete ALL investments and related data for ALL users!\n\n' +
+        'This action will:\n' +
+        '• Delete all investments\n' +
+        '• Delete all ROI, Binary, Referral, and Investment transactions\n' +
+        '• Reset ROI, Binary, Referral, and Investment wallet balances to zero\n' +
+        '• Reset all binary tree business volumes to zero\n\n' +
+        'Users will NOT be deleted, but all their investment data will be lost.\n\n' +
+        'This action CANNOT be undone. Are you absolutely sure?',
+      variant: 'danger',
+      confirmText: 'Yes, Flush All',
+      cancelText: 'Cancel',
+    });
 
-    // Double confirmation
-    if (!confirm('FINAL CONFIRMATION: Are you 100% certain you want to flush all investment data?')) {
-      return;
-    }
+    if (!confirmed) return;
 
     try {
       setFlushLoading(true);
@@ -147,13 +154,17 @@ export default function AdminDashboard() {
     if (nowpaymentsEnabled === null) return;
 
     const newStatus = !nowpaymentsEnabled;
-    const confirmMessage = newStatus
-      ? 'Are you sure you want to enable NOWPayments gateway? Users will be able to make real payments.'
-      : 'Are you sure you want to disable NOWPayments gateway? Users will not be able to make payments until it is re-enabled.';
+    const confirmed = await confirm({
+      title: newStatus ? 'Enable NOWPayments Gateway' : 'Disable NOWPayments Gateway',
+      message: newStatus
+        ? 'Are you sure you want to enable NOWPayments gateway? Users will be able to make real payments.'
+        : 'Are you sure you want to disable NOWPayments gateway? Users will not be able to make payments until it is re-enabled.',
+      variant: 'warning',
+      confirmText: newStatus ? 'Yes, Enable' : 'Yes, Disable',
+      cancelText: 'Cancel',
+    });
 
-    if (!confirm(confirmMessage)) {
-      return;
-    }
+    if (!confirmed) return;
 
     try {
       setNowpaymentsLoading(true);
@@ -209,7 +220,7 @@ export default function AdminDashboard() {
             <button
                 onClick={handleFlushInvestments}
                 disabled={flushLoading}
-                className="px-6 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-6 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
                 {flushLoading ? 'Flushing...' : 'Flush All Investments'}
             </button>

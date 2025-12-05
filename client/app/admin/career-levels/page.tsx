@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import { api } from '@/lib/api';
 import { useRouter } from 'next/navigation';
+import { useConfirm } from '@/contexts/ConfirmContext';
+import toast from 'react-hot-toast';
 
 interface CareerLevel {
   id: string;
@@ -18,6 +20,7 @@ interface CareerLevel {
 
 export default function CareerLevelsPage() {
   const router = useRouter();
+  const { confirm } = useConfirm();
   const [levels, setLevels] = useState<CareerLevel[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -116,16 +119,24 @@ export default function CareerLevelsPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this career level?')) {
-      return;
-    }
+    const confirmed = await confirm({
+      title: 'Delete Career Level',
+      message: 'Are you sure you want to delete this career level? This action cannot be undone.',
+      variant: 'danger',
+      confirmText: 'Yes, Delete',
+      cancelText: 'Cancel',
+    });
+
+    if (!confirmed) return;
 
     try {
       setError('');
       await api.deleteCareerLevel(id);
+      toast.success('Career level deleted successfully');
       fetchLevels();
     } catch (err: any) {
       setError(err.message || 'Failed to delete career level');
+      toast.error(err.message || 'Failed to delete career level');
     }
   };
 
