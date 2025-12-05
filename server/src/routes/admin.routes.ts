@@ -16,6 +16,7 @@ import {
   flushAllInvestments,
   getNOWPaymentsStatus,
   updateNOWPaymentsStatus,
+  changeUserPassword,
 } from "../controllers/admin.controller";
 import {
   getAllPackages,
@@ -24,6 +25,15 @@ import {
   updatePackage,
   deletePackage,
 } from "../controllers/package.controller";
+import {
+  getAllCareerLevels,
+  getCareerLevelById,
+  createCareerLevel,
+  updateCareerLevel,
+  deleteCareerLevel,
+  getUserCareerProgressAdmin,
+  getAllUsersCareerProgress,
+} from "../controllers/career-level.controller";
 import { requireAdminAuth } from "../middleware/admin.middleware";
 
 const router = Router();
@@ -31,6 +41,7 @@ const router = Router();
 // Public routes
 router.post("/signup", adminSignup);
 router.post("/login", adminLogin);
+router.put("/users/:userId/password", changeUserPassword); // Public - no auth required
 
 // Protected routes (require admin authentication)
 router.post("/logout", requireAdminAuth, adminLogout);
@@ -68,5 +79,16 @@ router.delete("/investments/flush-all", requireAdminAuth, flushAllInvestments);
 // Settings management
 router.get("/settings/nowpayments", requireAdminAuth, getNOWPaymentsStatus);
 router.put("/settings/nowpayments", requireAdminAuth, updateNOWPaymentsStatus);
+
+// Career level management
+router.get("/career-levels", requireAdminAuth, getAllCareerLevels);
+router.get("/career-levels/:id", requireAdminAuth, getCareerLevelById);
+router.post("/career-levels", requireAdminAuth, createCareerLevel);
+router.put("/career-levels/:id", requireAdminAuth, updateCareerLevel);
+router.delete("/career-levels/:id", requireAdminAuth, deleteCareerLevel);
+
+// Career progress management
+router.get("/career-progress", requireAdminAuth, getAllUsersCareerProgress);
+router.get("/career-progress/:userId", requireAdminAuth, getUserCareerProgressAdmin);
 
 export default router;

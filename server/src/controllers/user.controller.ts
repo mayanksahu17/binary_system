@@ -13,6 +13,7 @@ import { processInvestment } from "../services/investment.service";
 import { processMockPayment } from "../lib/payments/mock-nowpayments";
 import { exchangeWallets } from "../services/wallet-exchange.service";
 import { sendInvestmentPurchaseEmail, sendWithdrawalCreatedEmail } from "../lib/mail-service/email.service";
+import { getUserCareerProgress } from "../services/career-level.service";
 import { Types } from "mongoose";
 
 /**
@@ -865,6 +866,35 @@ export const exchangeWalletFunds = asyncHandler(async (req, res) => {
     status: "success",
     message: "Wallet exchange completed successfully",
     data: result,
+  });
+});
+
+/**
+ * Get user's career progress (User)
+ * GET /api/v1/user/career-progress
+ */
+export const getUserCareerProgressController = asyncHandler(async (req, res) => {
+  const userId = (req as any).user?.id;
+  if (!userId) {
+    throw new AppError("User not authenticated", 401);
+  }
+
+  const progress = await getUserCareerProgress(userId);
+
+  const response = res as any;
+  response.status(200).json({
+    status: "success",
+    data: {
+      progress: progress || {
+        currentLevel: null,
+        currentLevelName: null,
+        levelInvestment: 0,
+        totalBusinessVolume: 0,
+        completedLevels: [],
+        totalRewardsEarned: 0,
+        lastCheckedAt: null,
+      },
+    },
   });
 });
 

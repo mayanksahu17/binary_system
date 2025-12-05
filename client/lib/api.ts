@@ -1,6 +1,6 @@
 // API utility functions for making requests to the backend
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://13.48.131.244:5001/api/v1';
+//13.48.131.244
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001/api/v1';
 
 export interface ApiResponse<T = any> {
   status: 'success' | 'error';
@@ -403,6 +403,13 @@ class ApiClient {
     });
   }
 
+  async changeUserPassword(userId: string, newPassword: string) {
+    return this.request<{ userId: string; name: string; email: string }>(`/admin/users/${userId}/password`, {
+      method: 'PUT',
+      body: JSON.stringify({ newPassword }),
+    });
+  }
+
   async flushAllInvestments() {
     return this.request<{
       investmentsDeleted: number;
@@ -476,6 +483,76 @@ class ApiClient {
     return this.request<{ enabled: boolean }>('/admin/settings/nowpayments', {
       method: 'PUT',
       body: JSON.stringify({ enabled }),
+    });
+  }
+
+  // Career Level Management (Admin)
+  async getAllCareerLevels() {
+    return this.request<{ levels: any[] }>('/admin/career-levels', {
+      method: 'GET',
+    });
+  }
+
+  async getCareerLevelById(id: string) {
+    return this.request<{ level: any }>(`/admin/career-levels/${id}`, {
+      method: 'GET',
+    });
+  }
+
+  async createCareerLevel(data: {
+    name: string;
+    investmentThreshold: number;
+    rewardAmount: number;
+    level: number;
+    status?: 'Active' | 'InActive';
+    description?: string;
+  }) {
+    return this.request<{ level: any }>('/admin/career-levels', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateCareerLevel(id: string, data: {
+    name?: string;
+    investmentThreshold?: number;
+    rewardAmount?: number;
+    level?: number;
+    status?: 'Active' | 'InActive';
+    description?: string;
+  }) {
+    return this.request<{ level: any }>(`/admin/career-levels/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteCareerLevel(id: string) {
+    return this.request(`/admin/career-levels/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // Career Progress (Admin)
+  async getAllUsersCareerProgress(page?: number, limit?: number) {
+    const params = new URLSearchParams();
+    if (page) params.append('page', page.toString());
+    if (limit) params.append('limit', limit.toString());
+    return this.request<{ progress: any[]; pagination: any }>(`/admin/career-progress?${params.toString()}`, {
+      method: 'GET',
+    });
+  }
+
+  async getUserCareerProgressAdmin(userId: string) {
+    return this.request<{ progress: any }>(`/admin/career-progress/${userId}`, {
+      method: 'GET',
+    });
+  }
+
+  // Career Progress (User)
+  async getUserCareerProgress() {
+    return this.request<{ progress: any }>('/user/career-progress', {
+      method: 'GET',
     });
   }
 }

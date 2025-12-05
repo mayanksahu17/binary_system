@@ -13,6 +13,7 @@ import {
   updateWalletAddress,
   getUserReferralLinks,
   exchangeWalletFunds,
+  getUserCareerProgressController,
 } from "../controllers/user.controller";
 import { requireAuth } from "../middleware/auth.middleware";
 
@@ -32,6 +33,7 @@ router.post("/vouchers/create", requireAuth, createVoucher);
 router.put("/wallet-address", requireAuth, updateWalletAddress);
 router.get("/referral-links", requireAuth, getUserReferralLinks);
 router.post("/wallet-exchange", requireAuth, exchangeWalletFunds);
+router.get("/career-progress", requireAuth, getUserCareerProgressController);
 
 export default router;
 

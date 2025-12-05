@@ -18,7 +18,11 @@
     "test:binary-bonus": "ts-node -r dotenv/config src/scripts/testBinaryBonusFlow.ts",
     "test:binary-scenarios": "ts-node -r dotenv/config src/scripts/testBinaryBonusScenarios.ts",
     "test:carry-forward": "ts-node -r dotenv/config src/scripts/testCarryForwardFlush.ts",
+    "test:carry-forward-api": "ts-node -r dotenv/config src/scripts/testCarryForwardAPI.ts",
     "create:abc-users": "ts-node -r dotenv/config src/scripts/createABCUsers.ts",
+    "test:career-levels": "ts-node -r dotenv/config src/scripts/testCareerLevels.ts",
+    "test:comprehensive": "ts-node -r dotenv/config src/scripts/comprehensiveSystemTest.ts",
+    "reset:admin-password": "ts-node -r dotenv/config src/scripts/resetAdminPassword.ts",
     "migrate:investment-wallets": "ts-node -r dotenv/config src/scripts/addInvestmentWallets.ts",
     "recalculate:downlines": "ts-node -r dotenv/config src/scripts/recalculateDownlines.ts"
   },

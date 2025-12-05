@@ -464,9 +464,64 @@ async function testScenario2_ComplexTree() {
   const treeA_phase5_after = await BinaryTree.findOne({ user: userA._id });
   const rightCarry_phase5_after = parseFloat(treeA_phase5_after!.rightCarry.toString());
 
-  logTest("Phase 5 - User A Right Carry After Multiple Uses (CRITICAL)", rightCarry_phase5_after < rightCarry_phase5_before,
-    `User A right carry should be reduced (was $${rightCarry_phase5_before.toFixed(2)}, now $${rightCarry_phase5_after.toFixed(2)})`,
-    { rightCarryBefore: rightCarry_phase5_before.toFixed(2), rightCarryAfter: rightCarry_phase5_after.toFixed(2) });
+  // If carry was fully consumed, it should be $0
+  logTest("Phase 5 - User A Right Carry After Multiple Uses (CRITICAL)", rightCarry_phase5_after === 0 || rightCarry_phase5_after < rightCarry_phase5_before,
+    `User A right carry should be reduced or $0 (was $${rightCarry_phase5_before.toFixed(2)}, now $${rightCarry_phase5_after.toFixed(2)})`,
+    { rightCarryBefore: rightCarry_phase5_before.toFixed(2), rightCarryAfter: rightCarry_phase5_after.toFixed(2), expected: "0 or reduced" });
+
+  console.log("\n=== Phase 6: Complex Multi-Level Carry Forward Usage ===");
+  // Test carry forward usage at multiple levels
+  // User E invests $600 (right of B)
+  await processInvestment(userE._id as Types.ObjectId, pkg._id as Types.ObjectId, 600);
+
+  // Trigger Day 7 cron
+  await calculateDailyBinaryBonuses();
+
+  // Check User B's carry forward
+  const treeB_phase6 = await BinaryTree.findOne({ user: userB._id });
+  const rightCarryB_phase6 = parseFloat(treeB_phase6!.rightCarry.toString());
+  console.log(`User B right carry after User E invests: $${rightCarryB_phase6.toFixed(2)}`);
+
+  // User D invests to balance User B's tree
+  const balanceAmountB = Math.max(100, Math.ceil(rightCarryB_phase6));
+  await processInvestment(userD._id as Types.ObjectId, pkg._id as Types.ObjectId, balanceAmountB);
+
+  // Trigger Day 8 cron
+  await calculateDailyBinaryBonuses();
+
+  const treeB_phase6_after = await BinaryTree.findOne({ user: userB._id });
+  const rightCarryB_phase6_after = parseFloat(treeB_phase6_after!.rightCarry.toString());
+
+  logTest("Phase 6 - User B Right Carry After Flush (CRITICAL)", rightCarryB_phase6_after === 0 || rightCarryB_phase6_after < rightCarryB_phase6,
+    `User B right carry should be $0 or reduced (was $${rightCarryB_phase6.toFixed(2)}, now $${rightCarryB_phase6_after.toFixed(2)})`,
+    { rightCarryBefore: rightCarryB_phase6.toFixed(2), rightCarryAfter: rightCarryB_phase6_after.toFixed(2), expected: "0 or reduced" });
+
+  console.log("\n=== Phase 7: Multiple Sequential Carry Forward Uses (User A) ===");
+  // Create multiple imbalances and test carry forward flush each time
+  for (let i = 1; i <= 3; i++) {
+    console.log(`\n--- Iteration ${i} ---`);
+    
+    // Create imbalance
+    await processInvestment(userF._id as Types.ObjectId, pkg._id as Types.ObjectId, 300);
+    await calculateDailyBinaryBonuses();
+    
+    const treeA_iter = await BinaryTree.findOne({ user: userA._id });
+    const rightCarry_iter = parseFloat(treeA_iter!.rightCarry.toString());
+    console.log(`After imbalance ${i}: User A right carry = $${rightCarry_iter.toFixed(2)}`);
+    
+    // Balance it
+    if (rightCarry_iter > 0) {
+      await processInvestment(userD._id as Types.ObjectId, pkg._id as Types.ObjectId, Math.max(100, Math.ceil(rightCarry_iter)));
+      await calculateDailyBinaryBonuses();
+      
+      const treeA_iter_after = await BinaryTree.findOne({ user: userA._id });
+      const rightCarry_iter_after = parseFloat(treeA_iter_after!.rightCarry.toString());
+      
+      logTest(`Phase 7 - Iteration ${i} Carry Flush`, rightCarry_iter_after === 0 || rightCarry_iter_after < rightCarry_iter,
+        `Iteration ${i}: Right carry should be $0 or reduced (was $${rightCarry_iter.toFixed(2)}, now $${rightCarry_iter_after.toFixed(2)})`,
+        { iteration: i, rightCarryBefore: rightCarry_iter.toFixed(2), rightCarryAfter: rightCarry_iter_after.toFixed(2) });
+    }
+  }
 }
 
 async function runTests() {

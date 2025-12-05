@@ -21,6 +21,7 @@ import { Voucher } from "../models/Voucher";
 import { Ticket } from "../models/Ticket";
 import { Settings } from "../models/Settings";
 import { sendWithdrawalApprovedEmail, sendWithdrawalRejectedEmail } from "../lib/mail-service/email.service";
+import bcrypt from "bcryptjs";
 
 /**
  * Admin Signup
@@ -1129,5 +1130,45 @@ export const updateNOWPaymentsStatus = asyncHandler(async (req, res) => {
   } catch (error: any) {
     throw new AppError(error.message || "Failed to update NOWPayments status", 500);
   }
+});
+
+/**
+ * Change user password by userId (Admin only)
+ * PUT /api/v1/admin/users/:userId/password
+ */
+export const changeUserPassword = asyncHandler(async (req, res) => {
+  const { userId } = req.params;
+  const body = (req as any).body;
+  const { newPassword } = body;
+
+  // Validation
+  if (!newPassword) {
+    throw new AppError("New password is required", 400);
+  }
+
+  if (newPassword.length < 8) {
+    throw new AppError("Password must be at least 8 characters long", 400);
+  }
+
+  // Find user by userId
+  const user = await User.findOne({ userId });
+  if (!user) {
+    throw new AppError("User not found", 404);
+  }
+
+  // Update password (will be hashed by pre-save hook)
+  user.password = newPassword;
+  await user.save();
+
+  const response = res as any;
+  response.status(200).json({
+    status: "success",
+    message: "User password updated successfully",
+    data: {
+      userId: user.userId,
+      name: user.name,
+      email: user.email,
+    },
+  });
 });
 

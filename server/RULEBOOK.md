@@ -545,24 +545,173 @@ right_available = rightCarry + (rightBusiness - rightMatched)
 matched = min(left_available, right_available)
 capped_matched = min(matched, powerCapacity)
 
-// After matching, leftover available volume becomes new carry forward:
-newLeftCarry = left_available - capped_matched
-newRightCarry = right_available - capped_matched
+// Consumption: Priority is carry first, then unmatched business
+// Calculate what was consumed from carry vs business
+leftConsumedFromCarry = min(capped_matched, leftCarry)
+leftConsumedFromBusiness = capped_matched - leftConsumedFromCarry
+rightConsumedFromCarry = min(capped_matched, rightCarry)
+rightConsumedFromBusiness = capped_matched - rightConsumedFromCarry
+
+// Calculate new carry forward based on consumption:
+// 1. If no carry initially: leftover unmatched business becomes carry
+// 2. If carry partially consumed: remaining carry + leftover unmatched business
+// 3. If carry fully consumed: new carry = $0 (leftover unmatched business stays as unmatched)
 ```
 
 **Key Points:**
 - Carry forward is **flushed** (consumed) during matching
-- After matching, the leftover available volume becomes the new carry forward
+- **CRITICAL**: When carry is fully consumed, it becomes $0 (not leftover unmatched business)
+- Leftover unmatched business remains as unmatched (tracked via business - matched)
+- If there was no carry initially, leftover unmatched business becomes the new carry forward
+- If carry was partially consumed, new carry = remaining carry + leftover unmatched business
 - If all available volume is matched, carry forward becomes $0
-- If there's leftover volume, it becomes the new carry forward for the next day
-- **Important**: The original carry forward is consumed and replaced with leftover unmatched volume
-- If carry forward is fully consumed, the new carry forward is the leftover unmatched business
 
 ### Matched Amount Tracking
 
 - `leftMatched`: Total amount matched from `leftBusiness`
 - `rightMatched`: Total amount matched from `rightBusiness`
 - Used to calculate unmatched business: `leftBusiness - leftMatched`
+
+---
+
+## Career Levels Reward System
+
+### Overview
+
+The Career Levels Reward System rewards users based on their total business volume (left + right business). Users progress through predefined levels and receive rewards when they reach each level's investment threshold.
+
+### Career Level Structure
+
+Each career level has:
+- **Name**: e.g., "Bronze", "Silver", "Gold", "Platinum"
+- **Level Number**: Sequential ordering (1, 2, 3, 4...)
+- **Investment Threshold**: Total business volume required (left + right)
+- **Reward Amount**: Reward paid when threshold is reached
+- **Status**: Active or InActive
+
+### Default Career Levels
+
+1. **Bronze** (Level 1)
+   - Investment Threshold: $1,000
+   - Reward: $200
+
+2. **Silver** (Level 2)
+   - Investment Threshold: $5,000
+   - Reward: $500
+
+3. **Gold** (Level 3)
+   - Investment Threshold: $10,000
+   - Reward: $1,000
+
+4. **Platinum** (Level 4)
+   - Investment Threshold: $20,000
+   - Reward: $5,000
+
+### Career Level Calculation
+
+**Total Business Volume:**
+```
+totalBusinessVolume = leftBusiness + rightBusiness
+```
+
+**Level Investment Progress:**
+```
+levelInvestment = totalBusinessVolume - sum(completedLevelThresholds)
+```
+
+**Level Completion:**
+- When `levelInvestment >= currentLevelThreshold`, the user:
+  1. Receives the reward amount (credited to ROI wallet)
+  2. Level investment counter resets to 0
+  3. Progresses to the next level
+  4. Starts counting from 0 to the next level's threshold
+
+### Career Level Checking
+
+Career levels are checked automatically when:
+- Business volume is added to a user's binary tree (via `addBusinessVolume`)
+- This happens when a downline activates a package
+
+**Process:**
+1. Calculate total business volume (left + right)
+2. Find the next level to achieve (after highest completed level)
+3. Calculate level investment progress
+4. If threshold reached:
+   - Award reward to ROI wallet
+   - Record completion in `completedLevels`
+   - Reset `levelInvestment` to 0
+   - Move to next level
+5. Update `lastCheckedAt` timestamp
+
+### Career Progress Tracking
+
+Each user has a `UserCareerProgress` record that tracks:
+- `currentLevel`: Reference to current career level
+- `currentLevelName`: Name of current level
+- `levelInvestment`: Investment progress for current level (resets after each level)
+- `totalBusinessVolume`: Total business volume (cumulative, never resets)
+- `completedLevels`: Array of completed levels with completion date and reward
+- `totalRewardsEarned`: Total career rewards earned across all levels
+- `lastCheckedAt`: Last time career level was checked
+
+### Example Flow
+
+**User A's Career Journey:**
+
+1. **Initial State:**
+   - Total Business: $0
+   - Current Level: Bronze (threshold: $1,000)
+   - Level Investment: $0
+
+2. **After $1,000 Business:**
+   - Total Business: $1,000
+   - Level Investment: $1,000
+   - **Bronze Level Completed!**
+   - Reward: $200 (credited to ROI wallet)
+   - Level Investment: $0 (reset)
+   - Current Level: Silver (threshold: $5,000)
+
+3. **After $5,000 More Business (Total: $6,000):**
+   - Total Business: $6,000
+   - Level Investment: $5,000 (counted from $1,000 to $6,000)
+   - **Silver Level Completed!**
+   - Reward: $500 (credited to ROI wallet)
+   - Level Investment: $0 (reset)
+   - Current Level: Gold (threshold: $10,000)
+
+4. **After $10,000 More Business (Total: $16,000):**
+   - Total Business: $16,000
+   - Level Investment: $10,000 (counted from $6,000 to $16,000)
+   - **Gold Level Completed!**
+   - Reward: $1,000 (credited to ROI wallet)
+   - Level Investment: $0 (reset)
+   - Current Level: Platinum (threshold: $20,000)
+
+5. **After $20,000 More Business (Total: $36,000):**
+   - Total Business: $36,000
+   - Level Investment: $20,000 (counted from $16,000 to $36,000)
+   - **Platinum Level Completed!**
+   - Reward: $5,000 (credited to ROI wallet)
+   - Level Investment: $0 (reset)
+   - Current Level: null (all levels completed)
+
+### Admin Management
+
+Admins can:
+- Create new career levels
+- Update existing career levels (threshold, reward, status)
+- Delete career levels
+- View all users' career progress
+- View individual user's career progress
+
+### Important Notes
+
+- Career level checking is **automatic** and happens when business volume is added
+- Rewards are credited to the **ROI wallet**
+- Level investment counter **resets to 0** after each level completion
+- Total business volume is **cumulative** and never resets
+- Users can complete multiple levels in sequence
+- If all levels are completed, `currentLevel` becomes `null`
 
 ---
 
@@ -721,13 +870,15 @@ newRightCarry = right_available - capped_matched
   - `capped_matched` = min($400, $1000) = $400
   - `binaryBonus` = $400 × 10% = **$40**
   - Consumption: All $400 consumed from rightCarry (carry >= matched)
-  - `newLeftCarry` = $400 - $400 = **$0** (all matched, no leftover)
-  - `newRightCarry` = $800 - $400 = **$400** (leftover unmatched business)
+  - `rightConsumedFromCarry` = $400, `rightConsumedFromBusiness` = $0
+  - `newLeftCarry` = **$0** (all matched, no leftover)
+  - `newRightCarry` = **$0** (carry fully consumed, leftover unmatched business stays as unmatched)
   - `newRightMatched` = $100 (unchanged, no business consumed)
 - Result: User A receives **$40** binary bonus
 - **Important**: 
   - The original $400 right carry is **consumed** (flushed) during matching
-  - The new $400 right carry is leftover unmatched business ($500 - $100 = $400)
+  - **CRITICAL FIX**: When carry is fully consumed, new carry = $0 (not leftover unmatched business)
+  - Leftover unmatched business ($400) stays as unmatched (available for future matching)
   - Right matched stays $100 because all matching consumed from carry, not business
 
 ### Sample 1.1: Carry Forward Flush Verification
