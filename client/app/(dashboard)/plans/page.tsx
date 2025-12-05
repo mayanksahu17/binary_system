@@ -142,6 +142,19 @@ export default function PlansPage() {
       return;
     }
 
+    // Validate voucher usage: Investment cannot exceed 2x the voucher's purchase amount (voucher investment value)
+    if (selectedVoucherId) {
+      const selectedVoucher = availableVouchers.find((v: any) => v.voucherId === selectedVoucherId);
+      if (selectedVoucher) {
+        const voucherInvestmentValue = selectedVoucher.investmentValue || selectedVoucher.amount * 2;
+        // Investment amount cannot be more than 2x the voucher purchase amount (voucher investment value)
+        if (amount > voucherInvestmentValue) {
+          setError(`Investment amount ($${amount.toLocaleString()}) cannot exceed the voucher's investment value ($${voucherInvestmentValue.toLocaleString()}). Maximum investment with this voucher is $${voucherInvestmentValue.toLocaleString()}.`);
+          return;
+        }
+      }
+    }
+
     try {
       processingRef.current = true;
       setCreatingPayment(true);
