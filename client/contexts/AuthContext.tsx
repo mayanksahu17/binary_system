@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { api } from '@/lib/api';
 
 interface User {
@@ -37,6 +37,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [admin, setAdmin] = useState<Admin | null>(null);
   const [loading, setLoading] = useState(true);
+  const hasFetchedRef = useRef(false);
 
   const refreshAuth = async () => {
     try {
@@ -95,7 +96,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
+    // Prevent duplicate calls (React StrictMode in development)
+    if (hasFetchedRef.current) {
+      return;
+    }
+    hasFetchedRef.current = true;
+    
     refreshAuth();
+
+    // No cleanup - we want to prevent duplicate calls even on remount
   }, []);
 
   const login = async (emailOrPhoneOrUserId: string, password: string, isAdmin = false) => {

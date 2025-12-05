@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import toast from 'react-hot-toast';
 
 interface Statistics {
   totalUsers: number;
@@ -72,14 +73,14 @@ export default function AdminDashboard() {
       });
       
       if (response.data) {
-        alert('Daily calculations triggered successfully!');
+        toast.success('Daily calculations triggered successfully!');
         // Refresh statistics after cron
         setTimeout(() => {
           fetchStatistics();
         }, 2000);
       }
     } catch (err: any) {
-      alert(err.message || 'Failed to trigger daily calculations');
+      toast.error(err.message || 'Failed to trigger daily calculations');
       console.error('Error triggering cron:', err);
     } finally {
       setCronLoading(false);
@@ -111,12 +112,9 @@ export default function AdminDashboard() {
       const response = await api.flushAllInvestments();
       
       if (response.data) {
-        alert(
-          `✅ All investments flushed successfully!\n\n` +
-          `• Investments deleted: ${response.data.investmentsDeleted}\n` +
-          `• Transactions deleted: ${response.data.transactionsDeleted}\n` +
-          `• ${response.data.walletsReset}\n` +
-          `• ${response.data.binaryTreesReset}`
+        toast.success(
+          `All investments flushed successfully! Investments deleted: ${response.data.investmentsDeleted}, Transactions deleted: ${response.data.transactionsDeleted}`,
+          { duration: 5000 }
         );
         // Refresh statistics after flush
         setTimeout(() => {
@@ -125,7 +123,7 @@ export default function AdminDashboard() {
       }
     } catch (err: any) {
       setError(err.message || 'Failed to flush investments');
-      alert(err.message || 'Failed to flush investments');
+      toast.error(err.message || 'Failed to flush investments');
       console.error('Error flushing investments:', err);
     } finally {
       setFlushLoading(false);
@@ -162,10 +160,10 @@ export default function AdminDashboard() {
       const response = await api.updateNOWPaymentsStatus(newStatus);
       if (response.data) {
         setNowpaymentsEnabled(response.data.enabled);
-        alert(`NOWPayments gateway ${newStatus ? 'enabled' : 'disabled'} successfully!`);
+        toast.success(`NOWPayments gateway ${newStatus ? 'enabled' : 'disabled'} successfully!`);
       }
     } catch (err: any) {
-      alert(err.message || 'Failed to update NOWPayments status');
+      toast.error(err.message || 'Failed to update NOWPayments status');
       console.error('Error updating NOWPayments status:', err);
     } finally {
       setNowpaymentsLoading(false);
@@ -201,21 +199,21 @@ export default function AdminDashboard() {
           <p className="mt-1 text-sm text-gray-500">Overview of system statistics and controls</p>
         </div>
             <div className="flex gap-3">
-              <button
-                onClick={handleTriggerCron}
-                disabled={cronLoading}
+            <button
+              onClick={handleTriggerCron}
+              disabled={cronLoading}
                 className="px-6 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {cronLoading ? 'Processing...' : 'Trigger Daily Calculations'}
-              </button>
-              <button
+            >
+              {cronLoading ? 'Processing...' : 'Trigger Daily Calculations'}
+            </button>
+            <button
                 onClick={handleFlushInvestments}
                 disabled={flushLoading}
                 className="px-6 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
+            >
                 {flushLoading ? 'Flushing...' : 'Flush All Investments'}
-              </button>
-            </div>
+            </button>
+          </div>
         </div>
 
         {error && (

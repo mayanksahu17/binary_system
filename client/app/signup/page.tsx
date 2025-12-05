@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, Suspense, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import { api } from '@/lib/api';
 
 function SignupContent() {
   const searchParams = useSearchParams();
@@ -21,8 +22,48 @@ function SignupContent() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [referrerFromUrl, setReferrerFromUrl] = useState(false);
+  const [referrerValidation, setReferrerValidation] = useState<{
+    checking: boolean;
+    valid: boolean | null;
+    message: string;
+  }>({ checking: false, valid: null, message: '' });
   const { signup } = useAuth();
   const router = useRouter();
+  const validationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const validateReferrerId = async (referrerId: string) => {
+    if (!referrerId || referrerId.trim() === '') {
+      setReferrerValidation({ checking: false, valid: null, message: '' });
+      return;
+    }
+
+    // Clear previous timeout
+    if (validationTimeoutRef.current) {
+      clearTimeout(validationTimeoutRef.current);
+    }
+
+    setReferrerValidation({ checking: true, valid: null, message: '' });
+
+    // Debounce validation - wait 500ms after user stops typing
+    validationTimeoutRef.current = setTimeout(async () => {
+      try {
+        const response = await api.validateReferrer(referrerId.trim());
+        if (response.data) {
+          setReferrerValidation({
+            checking: false,
+            valid: response.data.valid,
+            message: response.data.message,
+          });
+        }
+      } catch (err: any) {
+        setReferrerValidation({
+          checking: false,
+          valid: false,
+          message: err.message || 'Failed to validate referrer ID',
+        });
+      }
+    }, 500);
+  };
 
   // Read referral parameters from URL
   useEffect(() => {
@@ -36,14 +77,29 @@ function SignupContent() {
         position: (position === 'right' ? 'right' : 'left') as 'left' | 'right',
       }));
       setReferrerFromUrl(true);
+      // Validate referrer from URL
+      validateReferrerId(referrer);
     }
+
+    // Cleanup timeout on unmount
+    return () => {
+      if (validationTimeoutRef.current) {
+        clearTimeout(validationTimeoutRef.current);
+      }
+    };
   }, [searchParams]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value,
+      [name]: value,
     });
+
+    // Validate referrer ID in real-time if it's the referrerId field
+    if (name === 'referrerId' && !referrerFromUrl) {
+      validateReferrerId(value);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -210,8 +266,14 @@ function SignupContent() {
                     name="referrerId"
                     type="text"
                     disabled={referrerFromUrl}
-                    className={`appearance-none relative block w-full px-4 py-3 border-2 border-gray-300 placeholder-gray-400 text-black bg-white rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all sm:text-sm ${
-                      referrerFromUrl ? 'bg-green-50 cursor-not-allowed border-green-300' : ''
+                    className={`appearance-none relative block w-full px-4 py-3 border-2 placeholder-gray-400 text-black bg-white rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all sm:text-sm ${
+                      referrerFromUrl 
+                        ? 'bg-green-50 cursor-not-allowed border-green-300' 
+                        : referrerValidation.valid === true
+                        ? 'border-green-500'
+                        : referrerValidation.valid === false
+                        ? 'border-red-500'
+                        : 'border-gray-300'
                     }`}
                     placeholder="CROWN-XXXXXX"
                     value={formData.referrerId}
@@ -221,6 +283,33 @@ function SignupContent() {
                     <p className="mt-1 text-xs font-medium text-green-700">
                       Referrer ID was automatically filled from your referral link
                     </p>
+                  )}
+                  {!referrerFromUrl && formData.referrerId && (
+                    <div className="mt-1">
+                      {referrerValidation.checking ? (
+                        <p className="text-xs text-gray-600 flex items-center">
+                          <svg className="animate-spin h-3 w-3 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          Validating referrer ID...
+                        </p>
+                      ) : referrerValidation.valid === true ? (
+                        <p className="text-xs font-medium text-green-700 flex items-center">
+                          <svg className="h-3 w-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                          {referrerValidation.message}
+                        </p>
+                      ) : referrerValidation.valid === false ? (
+                        <p className="text-xs font-medium text-red-700 flex items-center">
+                          <svg className="h-3 w-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                          {referrerValidation.message}
+                        </p>
+                      ) : null}
+                    </div>
                   )}
                 </div>
                 <div>

@@ -160,45 +160,8 @@ export const createPayment = asyncHandler(async (req, res) => {
   const nowpaymentsSetting = await Settings.findOne({ key: "nowpayments_enabled" });
   const isNOWPaymentsEnabled = nowpaymentsSetting === null || nowpaymentsSetting.value === true || nowpaymentsSetting.value === "true";
 
-  // If payment gateway is disabled, process investment directly without payment
   if (!isNOWPaymentsEnabled) {
-    // Process investment directly (payment gateway disabled)
-    const { processInvestment } = await import("../services/investment.service");
-    
-    // Handle voucher if provided
-    if (voucherId && voucher) {
-      // Mark voucher as used
-      voucher.status = "used";
-      voucher.usedAt = new Date();
-      await voucher.save();
-    }
-
-    const investment = await processInvestment(
-      userId,
-      packageId,
-      investmentAmount,
-      voucherId || `DIRECT_${Date.now()}`, // Use voucherId or generate a direct payment ID
-      voucherId || undefined
-    );
-
-    const response = res as any;
-    return response.status(200).json({
-      status: "success",
-      message: "Investment activated successfully (payment gateway disabled)",
-      data: {
-        investment: {
-          id: investment._id,
-          amount: investmentAmount,
-          voucherUsed: voucher ? {
-            voucherId: voucher.voucherId,
-            amount: parseFloat(voucher.amount.toString()),
-            investmentValue: voucherInvestmentValue,
-          } : null,
-          remainingAmount: remainingAmount,
-          paymentGateway: "disabled",
-        },
-      },
-    });
+    throw new AppError("NOWPayments gateway is currently disabled. Please contact support or wait for it to be enabled.", 503);
   }
 
   // Get user email for invoice

@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
+import toast from 'react-hot-toast';
 
 interface Wallet {
   type: string;
@@ -61,9 +62,18 @@ export default function DashboardPage() {
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const hasFetchedRef = useRef(false);
 
   useEffect(() => {
+    // Prevent duplicate calls (React StrictMode in development)
+    if (hasFetchedRef.current) {
+      return;
+    }
+    hasFetchedRef.current = true;
+    
     fetchDashboardData();
+
+    // No cleanup - we want to prevent duplicate calls even on remount
   }, []);
 
   const fetchDashboardData = async () => {
@@ -222,7 +232,7 @@ export default function DashboardPage() {
                       <button
                         onClick={() => {
                           navigator.clipboard.writeText(referralLinks.leftLink);
-                          alert('Left referral link copied!');
+                          toast.success('Left referral link copied!');
                         }}
                         className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm"
                       >
@@ -242,7 +252,7 @@ export default function DashboardPage() {
                       <button
                         onClick={() => {
                           navigator.clipboard.writeText(referralLinks.rightLink);
-                          alert('Right referral link copied!');
+                          toast.success('Right referral link copied!');
                         }}
                         className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 text-sm"
                       >
@@ -339,9 +349,9 @@ export default function DashboardPage() {
                     </div>
                   </div>
                 )}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
         {/* Wallet Address Section */}
         <div className="mb-8">
@@ -355,20 +365,20 @@ export default function DashboardPage() {
                 {walletAddress ? 'Update' : 'Setup'} Payment Info
               </button>
             </div>
-            <div>
-              <h3 className="text-sm font-medium text-gray-700 mb-2">Crypto Wallet Address</h3>
-              {walletAddress ? (
-                <div className="p-3 bg-green-50 border border-green-200 rounded-md">
-                  <p className="text-sm font-mono text-gray-800 break-all">{walletAddress}</p>
-                  <p className="text-xs text-green-600 mt-1">✓ Wallet address configured</p>
-                </div>
-              ) : (
-                <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md">
-                  <p className="text-sm text-yellow-800">No wallet address set</p>
-                  <p className="text-xs text-yellow-600 mt-1">Required for withdrawals</p>
-                </div>
-              )}
-            </div>
+              <div>
+                <h3 className="text-sm font-medium text-gray-700 mb-2">Crypto Wallet Address</h3>
+                {walletAddress ? (
+                  <div className="p-3 bg-green-50 border border-green-200 rounded-md">
+                    <p className="text-sm font-mono text-gray-800 break-all">{walletAddress}</p>
+                    <p className="text-xs text-green-600 mt-1">✓ Wallet address configured</p>
+                  </div>
+                ) : (
+                  <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                    <p className="text-sm text-yellow-800">No wallet address set</p>
+                    <p className="text-xs text-yellow-600 mt-1">Required for withdrawals</p>
+                  </div>
+                )}
+              </div>
             {!walletAddress && (
               <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-md">
                 <p className="text-sm font-semibold text-red-800 mb-1">⚠️ Payment Information Required</p>
@@ -432,7 +442,7 @@ export default function DashboardPage() {
                           walletAddress: walletAddress
                         });
                         setShowWalletModal(false);
-                        alert('Payment information updated successfully!');
+                        toast.success('Payment information updated successfully!');
                         await fetchDashboardData();
                       } catch (err: any) {
                         setError(err.message || 'Failed to update payment information');

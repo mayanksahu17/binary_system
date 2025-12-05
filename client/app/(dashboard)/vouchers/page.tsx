@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
+import toast from 'react-hot-toast';
 
 interface Voucher {
   id: string;
@@ -28,10 +29,19 @@ export default function VouchersPage() {
   const [fromWalletType, setFromWalletType] = useState('');
   const [creating, setCreating] = useState(false);
   const [wallets, setWallets] = useState<any[]>([]);
+  const hasFetchedRef = useRef(false);
 
   useEffect(() => {
+    // Prevent duplicate calls (React StrictMode in development)
+    if (hasFetchedRef.current) {
+      return;
+    }
+    hasFetchedRef.current = true;
+    
     fetchVouchers();
     fetchWallets();
+
+    // No cleanup - we want to prevent duplicate calls even on remount
   }, []);
 
   const fetchWallets = async () => {
@@ -79,7 +89,7 @@ export default function VouchersPage() {
         setFromWalletType('');
         await fetchVouchers();
         await fetchWallets();
-        alert('Voucher created successfully!');
+        toast.success('Voucher created successfully!');
       }
     } catch (err: any) {
       setError(err.message || 'Failed to create voucher');

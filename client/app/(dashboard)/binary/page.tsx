@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
 
@@ -33,9 +33,18 @@ export default function BinaryPage() {
   const [binaryTree, setBinaryTree] = useState<BinaryTreeInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const hasFetchedRef = useRef(false);
 
   useEffect(() => {
+    // Prevent duplicate calls (React StrictMode in development)
+    if (hasFetchedRef.current) {
+      return;
+    }
+    hasFetchedRef.current = true;
+    
     fetchBinaryTree();
+
+    // No cleanup - we want to prevent duplicate calls even on remount
   }, []);
 
   const fetchBinaryTree = async () => {

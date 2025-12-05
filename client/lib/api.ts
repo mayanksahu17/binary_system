@@ -91,6 +91,12 @@ class ApiClient {
     });
   }
 
+  async validateReferrer(referrerId: string) {
+    return this.request<{ valid: boolean; message: string; referrer?: { userId: string; name: string } }>(`/auth/validate-referrer/${encodeURIComponent(referrerId)}`, {
+      method: 'GET',
+    });
+  }
+
   async verifyLoginToken(token: string) {
     const response = await this.request<{ user: any; token: string }>('/auth/verify-login-token', {
       method: 'POST',
