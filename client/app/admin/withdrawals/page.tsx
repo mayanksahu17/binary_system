@@ -27,6 +27,7 @@ interface Withdrawal {
 
 export default function AdminWithdrawals() {
   const { user, admin, loading: authLoading } = useAuth();
+  const { confirm } = useConfirm();
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
