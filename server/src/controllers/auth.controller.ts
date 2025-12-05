@@ -9,6 +9,64 @@ import { generateLoginToken, validateLoginToken } from "../services/login-token.
 import crypto from "crypto";
 
 /**
+ * Validate Referrer ID
+ * GET /api/v1/auth/validate-referrer/:referrerId
+ */
+export const validateReferrer = asyncHandler(async (req, res) => {
+  const { referrerId } = req.params;
+
+  if (!referrerId) {
+    throw new AppError("Referrer ID is required", 400);
+  }
+
+  let referrer = null;
+  
+  // Check if referrerId is a userId format (CROWN-XXXXXX) or MongoDB ObjectId
+  if (typeof referrerId === 'string' && referrerId.startsWith('CROWN-')) {
+    // It's a userId format, use findUserByUserId
+    referrer = await findUserByUserId(referrerId);
+  } else {
+    // It's a MongoDB ObjectId, use findById
+    referrer = await User.findById(referrerId);
+  }
+
+  if (!referrer) {
+    const response = res as any;
+    return response.status(200).json({
+      status: "success",
+      data: {
+        valid: false,
+        message: "Referrer ID does not exist",
+      },
+    });
+  }
+
+  if (referrer.status !== "active") {
+    const response = res as any;
+    return response.status(200).json({
+      status: "success",
+      data: {
+        valid: false,
+        message: "Referrer account is not active",
+      },
+    });
+  }
+
+  const response = res as any;
+  response.status(200).json({
+    status: "success",
+    data: {
+      valid: true,
+      message: "Referrer ID is valid",
+      referrer: {
+        userId: referrer.userId,
+        name: referrer.name,
+      },
+    },
+  });
+});
+
+/**
  * User Signup
  * POST /api/v1/auth/signup
  */

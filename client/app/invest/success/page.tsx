@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect, useState, Suspense, useRef } from 'react';
+import * as React from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import Link from 'next/link';
@@ -14,6 +15,7 @@ function SuccessContent() {
   const [processing, setProcessing] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
+  const processingRef = React.useRef(false);
 
   useEffect(() => {
     if (!orderId) {
@@ -22,13 +24,18 @@ function SuccessContent() {
       return;
     }
 
+    // Prevent duplicate processing - check before starting
+    if (processingRef.current) {
+      return;
+    }
+
+    // Set flag immediately to prevent duplicate calls
+    processingRef.current = true;
+
     const processInvestment = async () => {
       try {
         setProcessing(true);
         setError('');
-
-        // Wait a bit for payment callback to process
-        await new Promise(resolve => setTimeout(resolve, 2000));
 
         // Get payment details by orderId
         const paymentResponse = await api.getPaymentByOrderId(orderId);
@@ -38,6 +45,14 @@ function SuccessContent() {
         }
 
         const payment = paymentResponse.data.payment;
+
+        // Check if this is a free payment (NOWPayments disabled)
+        const isFreePayment = payment.paymentId?.startsWith('FREE_');
+        
+        // For free payments, skip the wait. For real payments, wait for callback processing.
+        if (!isFreePayment) {
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
 
         // Check if payment is completed
         if (payment.status !== 'completed') {
@@ -71,6 +86,9 @@ function SuccessContent() {
       } catch (err: any) {
         console.error('Error processing investment:', err);
         setError(err.message || 'Failed to process investment. Please contact support.');
+        setChecking(false);
+        setProcessing(false);
+        // Don't reset processingRef - keep it true to prevent duplicate calls
       } finally {
         setChecking(false);
         setProcessing(false);
@@ -78,6 +96,8 @@ function SuccessContent() {
     };
 
     processInvestment();
+
+    // No cleanup needed - we want to prevent duplicate calls even on remount
   }, [orderId]);
 
   return (

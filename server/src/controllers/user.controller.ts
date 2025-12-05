@@ -3,6 +3,7 @@ import { AppError } from "../utills/AppError";
 import { Wallet } from "../models/Wallet";
 import { Package } from "../models/Package";
 import { Investment } from "../models/Investment";
+import { Payment } from "../models/Payment";
 import { BinaryTree } from "../models/BinaryTree";
 import { WalletTransaction } from "../models/WalletTransaction";
 import { Withdrawal } from "../models/Withdrawal";
@@ -111,6 +112,18 @@ export const createInvestment = asyncHandler(async (req, res) => {
 
   // If paymentId is provided (from NOWPayments), use it. Otherwise, process mock payment.
   if (paymentId) {
+    // Check if investment already exists for this paymentId (prevent duplicates)
+    const existingInvestment = await Investment.findOne({ voucherId: paymentId });
+    if (existingInvestment) {
+      throw new AppError("Investment already exists for this payment. Duplicate investment prevented.", 400);
+    }
+
+    // Check if payment record exists and already has an investment
+    const payment = await Payment.findOne({ paymentId: paymentId });
+    if (payment && payment.investmentId) {
+      throw new AppError("Investment already exists for this payment. Duplicate investment prevented.", 400);
+    }
+
     // Payment already processed via NOWPayments, use the provided paymentId
     finalPaymentId = paymentId;
     // Create payment result structure for response
@@ -141,6 +154,14 @@ export const createInvestment = asyncHandler(async (req, res) => {
     Number(amount),
     finalPaymentId
   );
+
+  // Update payment record with investmentId to prevent duplicates
+  if (paymentId) {
+    await Payment.updateOne(
+      { paymentId: paymentId },
+      { $set: { investmentId: investment._id } }
+    );
+  }
 
   // Get updated wallets
   const wallets = await Wallet.find({ user: userId })

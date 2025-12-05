@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
 import { useRouter } from 'next/navigation';
+import toast from 'react-hot-toast';
 interface Wallet {
   type: string;
   balance: number;
@@ -41,9 +42,18 @@ export default function WithdrawPage() {
   const [selectedWalletType, setSelectedWalletType] = useState('');
   const [withdrawing, setWithdrawing] = useState(false);
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
+  const hasFetchedRef = useRef(false);
 
   useEffect(() => {
+    // Prevent duplicate calls (React StrictMode in development)
+    if (hasFetchedRef.current) {
+      return;
+    }
+    hasFetchedRef.current = true;
+    
     fetchData();
+
+    // No cleanup - we want to prevent duplicate calls even on remount
   }, []);
 
   const fetchData = async () => {
@@ -129,7 +139,7 @@ export default function WithdrawPage() {
       });
 
       if (response.data) {
-        alert('Withdrawal request submitted successfully!');
+        toast.success('Withdrawal request submitted successfully!');
         setWithdrawAmount('');
         await fetchData();
       }
@@ -151,7 +161,7 @@ export default function WithdrawPage() {
         walletAddress: walletAddress
       });
       setShowWalletModal(false);
-      alert('Payment information updated successfully!');
+      toast.success('Payment information updated successfully!');
       await fetchData();
     } catch (err: any) {
       setError(err.message || 'Failed to update payment information');
@@ -166,11 +176,11 @@ export default function WithdrawPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="text-center">
+          <div className="text-center">
           <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-slate-600"></div>
-          <p className="mt-4 text-gray-600">Loading...</p>
+            <p className="mt-4 text-gray-600">Loading...</p>
+          </div>
         </div>
-      </div>
     );
   }
 
@@ -178,15 +188,15 @@ export default function WithdrawPage() {
     <div className="w-full">
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-900">Withdraw Funds</h1>
-      </div>
-      {error && (
-        <div className="mb-4 bg-red-50 border border-red-400 text-red-700 px-4 py-3 rounded">
-          {error}
-        </div>
-      )}
+          </div>
+          {error && (
+            <div className="mb-4 bg-red-50 border border-red-400 text-red-700 px-4 py-3 rounded">
+              {error}
+            </div>
+          )}
 
 
-      <div className="px-4 py-6 sm:px-0">
+          <div className="px-4 py-6 sm:px-0">
             <div className="bg-white rounded-lg shadow p-6">
               {binaryTree && binaryTree.cappingLimit > 0 && (
                 <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
@@ -439,10 +449,10 @@ export default function WithdrawPage() {
                     >
                       Save
                     </button>
-                  </div>
-                </div>
-              </div>
             </div>
+          </div>
+        </div>
+      </div>
           )}
     </div>
   );

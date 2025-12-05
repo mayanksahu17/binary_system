@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
+import toast from 'react-hot-toast';
 
 interface User {
   id: string;
@@ -68,7 +69,7 @@ export default function AdminPanel() {
         window.open(impersonationUrl, '_blank');
       }
     } catch (err: any) {
-      alert(err.message || 'Failed to login as user');
+      toast.error(err.message || 'Failed to login as user');
       console.error('Error impersonating user:', err);
     }
   };
@@ -87,7 +88,7 @@ export default function AdminPanel() {
       setDeleteConfirm(null);
       // Refresh the user list
       await fetchUsers();
-      alert(`User ${deleteConfirm.userName} (${deleteConfirm.userId}) and all related data deleted successfully`);
+      toast.success(`User ${deleteConfirm.userName} (${deleteConfirm.userId}) and all related data deleted successfully`, { duration: 5000 });
     } catch (err: any) {
       setError(err.message || 'Failed to delete user');
       console.error('Error deleting user:', err);
@@ -146,8 +147,8 @@ export default function AdminPanel() {
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-900">User Management</h1>
         <p className="mt-1 text-sm text-gray-500">Manage and track all users in the system</p>
-      </div>
-      <div className="bg-white shadow rounded-lg">
+        </div>
+        <div className="bg-white shadow rounded-lg">
 
           {/* Search Bar */}
           <div className="px-6 py-4 border-b border-gray-200">
@@ -334,7 +335,7 @@ export default function AdminPanel() {
               </div>
             </div>
           )}
-        </div>
+      </div>
 
       {/* Delete Confirmation Modal */}
       {deleteConfirm && (

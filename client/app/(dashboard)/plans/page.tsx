@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
 
@@ -34,9 +34,19 @@ export default function PlansPage() {
   const [selectedPackage, setSelectedPackage] = useState<Package | null>(null);
   const [investAmount, setInvestAmount] = useState('');
   const [creatingPayment, setCreatingPayment] = useState(false);
+  const processingRef = useRef(false);
+  const hasFetchedRef = useRef(false);
 
   useEffect(() => {
+    // Prevent duplicate calls (React StrictMode in development)
+    if (hasFetchedRef.current) {
+      return;
+    }
+    hasFetchedRef.current = true;
+    
     fetchPackages();
+
+    // No cleanup - we want to prevent duplicate calls even on remount
   }, []);
 
   const fetchPackages = async () => {
@@ -61,6 +71,11 @@ export default function PlansPage() {
   };
 
   const handleCreatePayment = async () => {
+    // Prevent double-click/duplicate submission
+    if (processingRef.current || creatingPayment) {
+      return;
+    }
+
     if (!selectedPackage || !investAmount) {
       setError('Please enter an investment amount');
       return;
@@ -83,6 +98,7 @@ export default function PlansPage() {
     }
 
     try {
+      processingRef.current = true;
       setCreatingPayment(true);
       setError('');
       
@@ -93,9 +109,15 @@ export default function PlansPage() {
       });
 
       if (response.data?.payment?.paymentUrl) {
+        // If payment status is "completed" (free payment when NOWPayments is disabled), redirect to success page
+        if (response.data?.payment?.status === 'completed') {
+          console.log('Free payment created, redirecting to success page:', response.data.payment.paymentUrl);
+          window.location.href = response.data.payment.paymentUrl;
+        } else {
         // Redirect to NOWPayments payment page
         console.log('Redirecting to NOWPayments:', response.data.payment.paymentUrl);
         window.location.href = response.data.payment.paymentUrl;
+        }
       } else {
         // Check if we can construct payment URL from payment ID
         if (response.data?.payment?.paymentId) {
@@ -113,6 +135,7 @@ export default function PlansPage() {
       console.error('Payment creation error:', err);
       setError(err.message || 'Failed to create payment. Please ensure NOWPayments is configured.');
       setCreatingPayment(false);
+      processingRef.current = false;
     }
   };
 

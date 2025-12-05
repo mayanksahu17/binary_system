@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
 
@@ -29,6 +29,7 @@ export default function WalletExchangePage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [exchanging, setExchanging] = useState(false);
+  const hasFetchedRef = useRef(false);
   
   const [fromWalletType, setFromWalletType] = useState<string>('');
   const [toWalletType, setToWalletType] = useState<string>('');
@@ -36,7 +37,15 @@ export default function WalletExchangePage() {
   const [exchangeRate, setExchangeRate] = useState('1.0');
 
   useEffect(() => {
+    // Prevent duplicate calls (React StrictMode in development)
+    if (hasFetchedRef.current) {
+      return;
+    }
+    hasFetchedRef.current = true;
+    
     fetchWallets();
+
+    // No cleanup - we want to prevent duplicate calls even on remount
   }, []);
 
   const fetchWallets = async () => {
@@ -127,34 +136,34 @@ export default function WalletExchangePage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="text-center">
+          <div className="text-center">
           <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-slate-600"></div>
-          <p className="mt-4 text-gray-600">Loading wallets...</p>
+            <p className="mt-4 text-gray-600">Loading wallets...</p>
+          </div>
         </div>
-      </div>
     );
   }
 
   return (
     <div className="w-full">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Wallet Exchange</h1>
-      </div>
-      {/* Error Message */}
-      {error && (
-        <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
-          {error}
-        </div>
-      )}
+            <h1 className="text-3xl font-bold text-gray-900">Wallet Exchange</h1>
+          </div>
+          {/* Error Message */}
+          {error && (
+            <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+              {error}
+            </div>
+          )}
 
-      {/* Success Message */}
-      {success && (
-        <div className="mb-4 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded">
-          {success}
-        </div>
-      )}
+          {/* Success Message */}
+          {success && (
+            <div className="mb-4 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded">
+              {success}
+            </div>
+          )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Exchange Form */}
             <div className="lg:col-span-2">
               <div className="bg-white rounded-lg shadow p-6">
@@ -301,7 +310,7 @@ export default function WalletExchangePage() {
               </div>
             </div>
           </div>
-      </div>
+        </div>
   );
 }
 

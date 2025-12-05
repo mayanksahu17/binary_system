@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
+import toast from 'react-hot-toast';
 
 interface Withdrawal {
   id: string;
@@ -73,13 +74,13 @@ export default function AdminWithdrawals() {
     try {
       setProcessingId(withdrawalId);
       await api.approveWithdrawal(withdrawalId);
-      alert('Withdrawal approved successfully!');
+      toast.success('Withdrawal approved successfully!');
       // Reset filter to show all withdrawals including the newly approved one
       setStatusFilter('');
       setPage(1);
       await fetchWithdrawals();
     } catch (err: any) {
-      alert(err.message || 'Failed to approve withdrawal');
+      toast.error(err.message || 'Failed to approve withdrawal');
       console.error('Error approving withdrawal:', err);
     } finally {
       setProcessingId(null);
@@ -92,13 +93,13 @@ export default function AdminWithdrawals() {
     try {
       setProcessingId(withdrawalId);
       await api.rejectWithdrawal(withdrawalId, reason || undefined);
-      alert('Withdrawal rejected successfully!');
+      toast.success('Withdrawal rejected successfully!');
       // Reset filter to show all withdrawals including the newly rejected one
       setStatusFilter('');
       setPage(1);
       await fetchWithdrawals();
     } catch (err: any) {
-      alert(err.message || 'Failed to reject withdrawal');
+      toast.error(err.message || 'Failed to reject withdrawal');
       console.error('Error rejecting withdrawal:', err);
     } finally {
       setProcessingId(null);
@@ -153,9 +154,9 @@ export default function AdminWithdrawals() {
   return (
     <div className="w-full">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Withdrawal Management</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Withdrawal Management</h1>
         <p className="mt-1 text-sm text-gray-500">Approve or reject withdrawal requests</p>
-      </div>
+        </div>
 
         {/* Status Filter */}
         <div className="mb-6">
@@ -325,7 +326,7 @@ export default function AdminWithdrawals() {
             )}
           </div>
         )}
-      </div>
+    </div>
   );
 }
 

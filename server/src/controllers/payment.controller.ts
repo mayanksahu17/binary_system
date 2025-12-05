@@ -78,8 +78,37 @@ export const createPayment = asyncHandler(async (req, res) => {
   const nowpaymentsSetting = await Settings.findOne({ key: "nowpayments_enabled" });
   const isNOWPaymentsEnabled = nowpaymentsSetting === null || nowpaymentsSetting.value === true || nowpaymentsSetting.value === "true";
 
+  // If NOWPayments is disabled, create a free payment record and allow investment to proceed
   if (!isNOWPaymentsEnabled) {
-    throw new AppError("NOWPayments gateway is currently disabled. Please contact support or wait for it to be enabled.", 503);
+    // Create a payment record with status "completed" for free investment
+    const payment = await Payment.create({
+      user: new Types.ObjectId(userId),
+      package: new Types.ObjectId(packageId),
+      orderId,
+      paymentId: `FREE_${orderId}`,
+      amount: Types.Decimal128.fromString(investmentAmount.toString()),
+      currency,
+      status: "completed",
+      paymentUrl: `${baseUrl}/invest/success?orderId=${orderId}`,
+    });
+
+    const response = res as any;
+    response.status(200).json({
+      status: "success",
+      message: "Free investment payment created (NOWPayments disabled)",
+      data: {
+        payment: {
+          paymentId: payment.paymentId,
+          orderId: payment.orderId,
+          paymentUrl: payment.paymentUrl,
+          priceAmount: investmentAmount,
+          priceCurrency: currency,
+          status: "completed",
+        },
+        orderId,
+      },
+    });
+    return;
   }
 
   // Get user email for invoice
