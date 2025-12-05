@@ -34,6 +34,7 @@ export default function AdminInvestmentsPage() {
     amount: '',
   });
   const [userSearch, setUserSearch] = useState('');
+  const [searching, setSearching] = useState(false);
   const hasFetchedRef = useRef(false);
 
   useEffect(() => {
@@ -49,16 +50,74 @@ export default function AdminInvestmentsPage() {
       setLoading(true);
       const [usersRes, packagesRes] = await Promise.all([
         api.getAdminUsers({ page: 1, limit: 1000 }),
-        api.getPackages({ status: 'active' }),
+        api.getPackages({ limit: 1000 }),
       ]);
+      
+      console.log('Users response:', usersRes);
+      console.log('Packages response:', packagesRes);
       
       if (usersRes.data) {
         setUsers(usersRes.data.users || []);
       }
+      
       if (packagesRes.data) {
-        setPackages(packagesRes.data.packages || []);
+        const rawPackages = packagesRes.data.packages || [];
+        
+        // Helper function to extract value from MongoDB Decimal128 format
+        const extractDecimalValue = (value: any): number => {
+          if (value === null || value === undefined) {
+            return 0;
+          }
+          
+          // Handle MongoDB extended JSON format: { "$numberDecimal": "100" }
+          if (typeof value === 'object' && value.$numberDecimal !== undefined) {
+            const num = parseFloat(value.$numberDecimal);
+            return isNaN(num) ? 0 : num;
+          }
+          
+          // Handle Decimal128 objects with toString method
+          if (typeof value === 'object' && typeof value.toString === 'function') {
+            const num = parseFloat(value.toString());
+            return isNaN(num) ? 0 : num;
+          }
+          
+          // Handle plain numbers
+          if (typeof value === 'number') {
+            return isNaN(value) ? 0 : value;
+          }
+          
+          // Handle strings
+          if (typeof value === 'string') {
+            const num = parseFloat(value);
+            return isNaN(num) ? 0 : num;
+          }
+          
+          return 0;
+        };
+        
+        const packagesList = rawPackages
+          .filter((pkg: any) => pkg._id || pkg.id) // Filter out packages without IDs
+          .map((pkg: any) => ({
+            id: pkg._id?.toString() || pkg.id?.toString() || '',
+            packageName: pkg.packageName || 'Unnamed Package',
+            minAmount: extractDecimalValue(pkg.minAmount),
+            maxAmount: extractDecimalValue(pkg.maxAmount),
+            roi: pkg.roi || pkg.totalOutputPct || 0,
+            duration: pkg.duration || 0,
+            status: pkg.status || 'active',
+          }));
+        
+        setPackages(packagesList);
+        
+        if (packagesList.length === 0) {
+          toast.error('No packages found. Please create packages first.');
+        }
+      } else {
+        console.error('No data in packages response:', packagesRes);
+        toast.error('Failed to load packages. Please check the console for details.');
       }
     } catch (err: any) {
+      console.error('Error fetching data:', err);
       toast.error(err.message || 'Failed to load data');
     } finally {
       setLoading(false);
@@ -111,6 +170,19 @@ export default function AdminInvestmentsPage() {
     (user.email && user.email.toLowerCase().includes(userSearch.toLowerCase()))
   );
 
+  // Show searching indicator when user is typing
+  useEffect(() => {
+    if (userSearch.trim()) {
+      setSearching(true);
+      const timer = setTimeout(() => {
+        setSearching(false);
+      }, 300);
+      return () => clearTimeout(timer);
+    } else {
+      setSearching(false);
+    }
+  }, [userSearch]);
+
   const selectedPackage = packages.find(p => p.id === formData.packageId);
 
   if (loading) {
@@ -138,20 +210,27 @@ export default function AdminInvestmentsPage() {
             <label htmlFor="userSearch" className="block text-sm font-medium text-gray-700 mb-2">
               Search User <span className="text-red-500">*</span>
             </label>
-            <input
-              type="text"
-              id="userSearch"
-              value={userSearch}
-              onChange={(e) => {
-                setUserSearch(e.target.value);
-                if (!e.target.value) {
-                  setFormData({ ...formData, userId: '' });
-                }
-              }}
-              placeholder="Search by User ID, Name, or Email"
-              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
-            />
-            {userSearch && filteredUsers.length > 0 && (
+            <div className="relative">
+              <input
+                type="text"
+                id="userSearch"
+                value={userSearch}
+                onChange={(e) => {
+                  setUserSearch(e.target.value);
+                  if (!e.target.value) {
+                    setFormData({ ...formData, userId: '' });
+                  }
+                }}
+                placeholder="Search by User ID, Name, or Email"
+                className="w-full px-4 py-2 pr-10 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+              />
+              {searching && userSearch && (
+                <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-indigo-600"></div>
+                </div>
+              )}
+            </div>
+            {userSearch && !searching && filteredUsers.length > 0 && (
               <div className="mt-2 border border-gray-200 rounded-md max-h-60 overflow-y-auto">
                 {filteredUsers.map((user) => (
                   <button
@@ -168,6 +247,9 @@ export default function AdminInvestmentsPage() {
                   </button>
                 ))}
               </div>
+            )}
+            {userSearch && !searching && filteredUsers.length === 0 && (
+              <p className="mt-1 text-sm text-gray-500">No users found matching your search</p>
             )}
             {formData.userId && (
               <p className="mt-1 text-sm text-green-600">✓ User selected</p>
@@ -187,12 +269,19 @@ export default function AdminInvestmentsPage() {
               className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
             >
               <option value="">Select a package</option>
-              {packages.map((pkg) => (
-                <option key={pkg.id} value={pkg.id}>
-                  {pkg.packageName} (${pkg.minAmount} - ${pkg.maxAmount})
-                </option>
-              ))}
+              {packages.length === 0 ? (
+                <option disabled>No packages available</option>
+              ) : (
+                packages.map((pkg) => (
+                  <option key={pkg.id} value={pkg.id}>
+                    {pkg.packageName} (${pkg.minAmount} - ${pkg.maxAmount})
+                  </option>
+                ))
+              )}
             </select>
+            {packages.length === 0 && !loading && (
+              <p className="mt-1 text-sm text-red-600">No packages found. Please create packages in the Packages section.</p>
+            )}
             {selectedPackage && (
               <div className="mt-2 p-3 bg-blue-50 rounded-md">
                 <p className="text-sm text-gray-700">

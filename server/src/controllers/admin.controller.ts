@@ -2016,17 +2016,25 @@ export const updateTicket = asyncHandler(async (req, res) => {
 
   await ticket.save();
 
-  // Send email notification if status changed
-  if (status && status !== oldStatus && (ticket.raisedBy as any)?.email) {
+  // Send email notification on any ticket update (status change or reply added)
+  const hasStatusChanged = status && status !== oldStatus;
+  const hasReplyAdded = reply !== undefined && reply !== null && reply.trim() !== '';
+  const userEmail = (ticket.raisedBy as any)?.email;
+  
+  if ((hasStatusChanged || hasReplyAdded) && userEmail) {
     try {
       const { sendTicketStatusUpdateEmail } = await import("../lib/mail-service/email.service");
+      
+      // Determine the status to use (new status if changed, otherwise current status)
+      const currentStatus = status || ticket.status;
+      
       sendTicketStatusUpdateEmail({
-        to: (ticket.raisedBy as any).email,
+        to: userEmail,
         name: (ticket.raisedBy as any).name || "User",
         ticketId: ticketId,
         subject: ticket.subject,
-        oldStatus,
-        newStatus: status,
+        oldStatus: hasStatusChanged ? oldStatus : ticket.status,
+        newStatus: currentStatus,
         reply: reply || ticket.reply || "",
       }).catch((error) => {
         console.error('Failed to send ticket status update email:', error);
