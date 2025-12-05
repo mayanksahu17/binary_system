@@ -1008,22 +1008,35 @@ export const flushAllInvestments = asyncHandler(async (req, res) => {
     const investmentsResult = await Investment.deleteMany({});
     const investmentsDeleted = investmentsResult.deletedCount || 0;
 
-    // 2. Delete all wallet transactions related to investments (ROI, Binary, Referral)
+    // 2. Delete all NOWPayments history (Payment records)
+    const { Payment } = await import("../models/Payment");
+    const paymentsResult = await Payment.deleteMany({});
+    const paymentsDeleted = paymentsResult.deletedCount || 0;
+
+    // 3. Delete all wallet transactions related to investments (ROI, Binary, Referral, Investment)
+    // Get all ROI, Binary, Referral, and Investment wallets
+    const roiWallets = await Wallet.find({ type: WalletType.ROI }).select("_id").lean();
+    const binaryWallets = await Wallet.find({ type: WalletType.BINARY }).select("_id").lean();
+    const referralWallets = await Wallet.find({ type: WalletType.REFERRAL }).select("_id").lean();
+    const investmentWallets = await Wallet.find({ type: WalletType.INVESTMENT }).select("_id").lean();
+    
+    const walletIds = [
+      ...roiWallets.map(w => w._id),
+      ...binaryWallets.map(w => w._id),
+      ...referralWallets.map(w => w._id),
+      ...investmentWallets.map(w => w._id),
+    ];
+
+    // Delete all transactions from ROI, Binary, Referral, and Investment wallets
     const transactionsResult = await WalletTransaction.deleteMany({
-      $or: [
-        { "meta.type": "roi" },
-        { "meta.type": "binary" },
-        { "meta.type": "referral" },
-        { "meta.type": "investment" },
-        { "meta.type": "activation" },
-      ],
+      wallet: { $in: walletIds },
     });
     const transactionsDeleted = transactionsResult.deletedCount || 0;
 
-    // 3. Reset all wallet balances (ROI, Binary, Referral wallets)
-    // Keep Investment and Withdrawal wallets as they might have deposits/withdrawals
+    // 3. Reset all wallet balances (ROI, Binary, Referral, Investment wallets)
+    // Keep Withdrawal wallets as they might have withdrawal records
     await Wallet.updateMany(
-      { type: { $in: [WalletType.ROI, WalletType.BINARY, WalletType.REFERRAL] } },
+      { type: { $in: [WalletType.ROI, WalletType.BINARY, WalletType.REFERRAL, WalletType.INVESTMENT] } },
       {
         $set: {
           balance: Types.Decimal128.fromString("0"),
@@ -1052,11 +1065,12 @@ export const flushAllInvestments = asyncHandler(async (req, res) => {
     const response = res as any;
     response.status(200).json({
       status: "success",
-      message: "All investments and related data flushed successfully",
+      message: "All investments, transactions, and NOWPayments history flushed successfully",
       data: {
         investmentsDeleted,
+        paymentsDeleted,
         transactionsDeleted,
-        walletsReset: "ROI, Binary, Referral wallets reset to zero",
+        walletsReset: "ROI, Binary, Referral, Investment wallets reset to zero",
         binaryTreesReset: "All binary tree business volumes reset to zero",
       },
     });
@@ -1136,6 +1150,918 @@ export const updateNOWPaymentsStatus = asyncHandler(async (req, res) => {
  * Change user password by userId (Admin only)
  * PUT /api/v1/admin/users/:userId/password
  */
+/**
+ * Get admin reports (all user transactions)
+ * GET /api/v1/admin/reports
+ */
+export const getAdminReports = asyncHandler(async (req, res) => {
+  // Get all wallets
+  const wallets = await Wallet.find({});
+  const walletIds = wallets.map((w) => w._id);
+
+  // Get all transactions with user info
+  const transactions = await WalletTransaction.find({
+    wallet: { $in: walletIds },
+  })
+    .populate("wallet", "type")
+    .populate("user", "userId name email")
+    .sort({ createdAt: -1 })
+    .lean();
+
+  // Group transactions by type
+  const roiTransactions = transactions.filter(
+    (tx) => (tx.wallet as any)?.type === WalletType.ROI
+  );
+  const binaryTransactions = transactions.filter(
+    (tx) => (tx.wallet as any)?.type === WalletType.BINARY
+  );
+  const referralTransactions = transactions.filter(
+    (tx) => (tx.wallet as any)?.type === WalletType.REFERRAL
+  );
+  const investmentTransactions = transactions.filter(
+    (tx) => (tx.wallet as any)?.type === WalletType.INVESTMENT
+  );
+
+  // Get all withdrawals with user info
+  const withdrawals = await Withdrawal.find({})
+    .populate("user", "userId name email")
+    .sort({ createdAt: -1 })
+    .lean();
+
+  // Get investments for investment transactions
+  const investmentIds = investmentTransactions
+    .map((tx) => tx.txRef)
+    .filter((id): id is string => !!id);
+  
+  const investments = await Investment.find({
+    _id: { $in: investmentIds.map((id) => new Types.ObjectId(id)) },
+  })
+    .populate("packageId", "packageName roi duration")
+    .lean();
+
+  const investmentMap = new Map();
+  investments.forEach((inv) => {
+    investmentMap.set(inv._id.toString(), inv);
+  });
+
+  const formatTransaction = (tx: any) => ({
+    id: tx._id,
+    userId: (tx.user as any)?.userId || "N/A",
+    userName: (tx.user as any)?.name || "Unknown",
+    userEmail: (tx.user as any)?.email || "N/A",
+    type: tx.type,
+    amount: parseFloat(tx.amount.toString()),
+    currency: tx.currency || "USD",
+    balanceBefore: parseFloat(tx.balanceBefore.toString()),
+    balanceAfter: parseFloat(tx.balanceAfter.toString()),
+    status: tx.status,
+    txRef: tx.txRef,
+    meta: tx.meta,
+    createdAt: tx.createdAt,
+  });
+
+  const formatInvestmentTransaction = (tx: any) => {
+    const investment = tx.txRef ? investmentMap.get(tx.txRef) : null;
+    return {
+      id: tx._id,
+      userId: (tx.user as any)?.userId || "N/A",
+      userName: (tx.user as any)?.name || "Unknown",
+      userEmail: (tx.user as any)?.email || "N/A",
+      type: tx.type,
+      amount: parseFloat(tx.amount.toString()),
+      currency: tx.currency || "USD",
+      balanceBefore: parseFloat(tx.balanceBefore.toString()),
+      balanceAfter: parseFloat(tx.balanceAfter.toString()),
+      status: tx.status,
+      txRef: tx.txRef,
+      investment: investment ? {
+        id: investment._id,
+        packageName: (investment.packageId as any)?.packageName || "N/A",
+        roi: (investment.packageId as any)?.roi || 0,
+        duration: (investment.packageId as any)?.duration || 0,
+        investedAmount: parseFloat(investment.investedAmount.toString()),
+        type: investment.type,
+        createdAt: investment.createdAt,
+      } : null,
+      meta: tx.meta,
+      createdAt: tx.createdAt,
+    };
+  };
+
+  const formatWithdrawal = (wd: any) => ({
+    id: wd._id,
+    userId: (wd.user as any)?.userId || "N/A",
+    userName: (wd.user as any)?.name || "Unknown",
+    userEmail: (wd.user as any)?.email || "N/A",
+    amount: parseFloat(wd.amount.toString()),
+    charges: parseFloat(wd.charges.toString()),
+    finalAmount: parseFloat(wd.finalAmount.toString()),
+    walletType: wd.walletType,
+    status: wd.status,
+    method: wd.method,
+    withdrawalId: wd.withdrawalId,
+    createdAt: wd.createdAt,
+  });
+
+  const response = res as any;
+  response.status(200).json({
+    status: "success",
+    data: {
+      roi: roiTransactions.map(formatTransaction),
+      binary: binaryTransactions.map(formatTransaction),
+      referral: referralTransactions.map(formatTransaction),
+      investment: investmentTransactions.map(formatInvestmentTransaction),
+      withdrawals: withdrawals.map(formatWithdrawal),
+    },
+  });
+});
+
+/**
+ * Get Daily Business Report
+ * GET /api/v1/admin/reports/daily-business
+ */
+export const getDailyBusinessReport = asyncHandler(async (req, res) => {
+  const { date } = req.query;
+  const targetDate = date ? new Date(date as string) : new Date();
+  const startOfDay = new Date(targetDate);
+  startOfDay.setHours(0, 0, 0, 0);
+  const endOfDay = new Date(targetDate);
+  endOfDay.setHours(23, 59, 59, 999);
+
+  // Get all investments created on this date
+  const investments = await Investment.find({
+    createdAt: { $gte: startOfDay, $lte: endOfDay },
+  })
+    .populate("user", "userId name email")
+    .populate("packageId", "packageName roi duration")
+    .lean();
+
+  // Get all transactions on this date
+  const wallets = await Wallet.find({});
+  const walletIds = wallets.map((w) => w._id);
+  
+  const transactions = await WalletTransaction.find({
+    wallet: { $in: walletIds },
+    createdAt: { $gte: startOfDay, $lte: endOfDay },
+  })
+    .populate("wallet", "type")
+    .populate("user", "userId name email")
+    .lean();
+
+  // Get withdrawals on this date
+  const withdrawals = await Withdrawal.find({
+    createdAt: { $gte: startOfDay, $lte: endOfDay },
+  })
+    .populate("user", "userId name email")
+    .lean();
+
+  const totalInvestments = investments.reduce((sum, inv) => sum + parseFloat(inv.investedAmount.toString()), 0);
+  const totalROI = transactions
+    .filter((tx) => (tx.wallet as any)?.type === WalletType.ROI)
+    .reduce((sum, tx) => sum + parseFloat(tx.amount.toString()), 0);
+  const totalBinary = transactions
+    .filter((tx) => (tx.wallet as any)?.type === WalletType.BINARY)
+    .reduce((sum, tx) => sum + parseFloat(tx.amount.toString()), 0);
+  const totalReferral = transactions
+    .filter((tx) => (tx.wallet as any)?.type === WalletType.REFERRAL)
+    .reduce((sum, tx) => sum + parseFloat(tx.amount.toString()), 0);
+  const totalWithdrawals = withdrawals.reduce((sum, wd) => sum + parseFloat(wd.amount.toString()), 0);
+
+  const response = res as any;
+  response.status(200).json({
+    status: "success",
+    data: {
+      date: targetDate.toISOString().split('T')[0],
+      summary: {
+        totalInvestments,
+        totalROI,
+        totalBinary,
+        totalReferral,
+        totalWithdrawals,
+        netBusiness: totalInvestments - totalWithdrawals,
+      },
+      investments: investments.map((inv) => ({
+        id: inv._id,
+        userId: (inv.user as any)?.userId || "N/A",
+        userName: (inv.user as any)?.name || "Unknown",
+        userEmail: (inv.user as any)?.email || "N/A",
+        packageName: (inv.packageId as any)?.packageName || "N/A",
+        investedAmount: parseFloat(inv.investedAmount.toString()),
+        type: inv.type,
+        createdAt: inv.createdAt,
+      })),
+      transactions: transactions.length,
+      withdrawals: withdrawals.length,
+    },
+  });
+});
+
+/**
+ * Get NOWPayments Report
+ * GET /api/v1/admin/reports/nowpayments
+ */
+export const getNOWPaymentsReport = asyncHandler(async (req, res) => {
+  const { Payment } = await import("../models/Payment");
+  
+  const payments = await Payment.find({})
+    .populate("user", "userId name email")
+    .populate("package", "packageName")
+    .sort({ createdAt: -1 })
+    .lean();
+
+  const totalAmount = payments.reduce((sum, p) => sum + parseFloat(p.amount.toString()), 0);
+  const completedAmount = payments
+    .filter((p) => p.status === "completed")
+    .reduce((sum, p) => sum + parseFloat(p.amount.toString()), 0);
+  const pendingAmount = payments
+    .filter((p) => p.status === "pending" || p.status === "processing")
+    .reduce((sum, p) => sum + parseFloat(p.amount.toString()), 0);
+
+  const response = res as any;
+  response.status(200).json({
+    status: "success",
+    data: {
+      summary: {
+        totalPayments: payments.length,
+        totalAmount,
+        completedAmount,
+        pendingAmount,
+        failedAmount: totalAmount - completedAmount - pendingAmount,
+      },
+      payments: payments.map((p) => ({
+        id: p._id,
+        userId: (p.user as any)?.userId || "N/A",
+        userName: (p.user as any)?.name || "Unknown",
+        userEmail: (p.user as any)?.email || "N/A",
+        packageName: (p.package as any)?.packageName || "N/A",
+        orderId: p.orderId,
+        paymentId: p.paymentId,
+        amount: parseFloat(p.amount.toString()),
+        currency: p.currency,
+        status: p.status,
+        payAddress: p.payAddress,
+        payAmount: p.payAmount ? parseFloat(p.payAmount.toString()) : null,
+        payCurrency: p.payCurrency,
+        actuallyPaid: p.actuallyPaid ? parseFloat(p.actuallyPaid.toString()) : null,
+        createdAt: p.createdAt,
+        updatedAt: p.updatedAt,
+      })),
+    },
+  });
+});
+
+/**
+ * Get Country Business Report
+ * GET /api/v1/admin/reports/country-business
+ */
+export const getCountryBusinessReport = asyncHandler(async (req, res) => {
+  const investments = await Investment.find({})
+    .populate("user", "userId name email country")
+    .populate("packageId", "packageName")
+    .lean();
+
+  // Group by country
+  const countryBusiness = new Map<string, {
+    country: string;
+    totalInvestment: number;
+    investmentCount: number;
+    userCount: number;
+    users: Array<{
+      userId: string;
+      userName: string;
+      userEmail: string;
+      totalInvestment: number;
+      investmentCount: number;
+    }>;
+  }>();
+
+  investments.forEach((inv) => {
+    const country = (inv.user as any)?.country || "Unknown";
+    const userId = (inv.user as any)?._id?.toString() || "unknown";
+    
+    if (!countryBusiness.has(country)) {
+      countryBusiness.set(country, {
+        country,
+        totalInvestment: 0,
+        investmentCount: 0,
+        userCount: 0,
+        users: [],
+      });
+    }
+
+    const countryData = countryBusiness.get(country)!;
+    countryData.totalInvestment += parseFloat(inv.investedAmount.toString());
+    countryData.investmentCount += 1;
+
+    // Track user business
+    let userData = countryData.users.find((u: any) => u.userId === (inv.user as any)?.userId);
+    if (!userData) {
+      userData = {
+        userId: (inv.user as any)?.userId || "N/A",
+        userName: (inv.user as any)?.name || "Unknown",
+        userEmail: (inv.user as any)?.email || "N/A",
+        totalInvestment: 0,
+        investmentCount: 0,
+      };
+      countryData.users.push(userData);
+      countryData.userCount = countryData.users.length;
+    }
+    userData.totalInvestment += parseFloat(inv.investedAmount.toString());
+    userData.investmentCount += 1;
+  });
+
+  const countryStats = Array.from(countryBusiness.values())
+    .sort((a, b) => b.totalInvestment - a.totalInvestment);
+
+  const totalBusiness = countryStats.reduce((sum, c) => sum + c.totalInvestment, 0);
+  const totalUsers = countryStats.reduce((sum, c) => sum + c.userCount, 0);
+
+  const response = res as any;
+  response.status(200).json({
+    status: "success",
+    data: {
+      summary: {
+        totalCountries: countryStats.length,
+        totalUsers,
+        totalBusiness,
+      },
+      countries: countryStats,
+    },
+  });
+});
+
+/**
+ * Get Investments Report
+ * GET /api/v1/admin/reports/investments
+ */
+export const getInvestmentsReport = asyncHandler(async (req, res) => {
+  const investments = await Investment.find({})
+    .populate("user", "userId name email")
+    .populate("packageId", "packageName roi duration")
+    .sort({ createdAt: -1 })
+    .lean();
+
+  const totalAmount = investments.reduce((sum, inv) => sum + parseFloat(inv.investedAmount.toString()), 0);
+  const activeInvestments = investments.filter((inv) => inv.isActive).length;
+  const totalROIEarned = investments.reduce((sum, inv) => sum + parseFloat((inv.totalRoiEarned?.toString() || "0")), 0);
+
+  // Group by package
+  const packageStats = new Map();
+  investments.forEach((inv) => {
+    const packageId = (inv.packageId as any)?._id?.toString() || "unknown";
+    const packageName = (inv.packageId as any)?.packageName || "N/A";
+    if (!packageStats.has(packageId)) {
+      packageStats.set(packageId, {
+        packageName,
+        count: 0,
+        totalAmount: 0,
+      });
+    }
+    const pkg = packageStats.get(packageId);
+    pkg.count += 1;
+    pkg.totalAmount += parseFloat(inv.investedAmount.toString());
+  });
+
+  const response = res as any;
+  response.status(200).json({
+    status: "success",
+    data: {
+      summary: {
+        totalInvestments: investments.length,
+        activeInvestments,
+        totalAmount,
+        totalROIEarned,
+      },
+      packageStats: Array.from(packageStats.values()),
+      investments: investments.map((inv) => ({
+        id: inv._id,
+        userId: (inv.user as any)?.userId || "N/A",
+        userName: (inv.user as any)?.name || "Unknown",
+        userEmail: (inv.user as any)?.email || "N/A",
+        packageName: (inv.packageId as any)?.packageName || "N/A",
+        investedAmount: parseFloat(inv.investedAmount.toString()),
+        type: inv.type,
+        isActive: inv.isActive,
+        isBinaryUpdated: inv.isBinaryUpdated,
+        totalRoiEarned: parseFloat((inv.totalRoiEarned?.toString() || "0")),
+        startDate: inv.startDate,
+        endDate: inv.endDate,
+        createdAt: inv.createdAt,
+      })),
+    },
+  });
+});
+
+/**
+ * Get Withdrawals Report
+ * GET /api/v1/admin/reports/withdrawals
+ */
+export const getWithdrawalsReport = asyncHandler(async (req, res) => {
+  const withdrawals = await Withdrawal.find({})
+    .populate("user", "userId name email")
+    .sort({ createdAt: -1 })
+    .lean();
+
+  const totalAmount = withdrawals.reduce((sum, wd) => sum + parseFloat(wd.amount.toString()), 0);
+  const approvedAmount = withdrawals
+    .filter((wd) => wd.status === "approved")
+    .reduce((sum, wd) => sum + parseFloat(wd.amount.toString()), 0);
+  const pendingAmount = withdrawals
+    .filter((wd) => wd.status === "pending")
+    .reduce((sum, wd) => sum + parseFloat(wd.amount.toString()), 0);
+
+  const response = res as any;
+  response.status(200).json({
+    status: "success",
+    data: {
+      summary: {
+        totalWithdrawals: withdrawals.length,
+        totalAmount,
+        approvedAmount,
+        pendingAmount,
+        rejectedAmount: totalAmount - approvedAmount - pendingAmount,
+      },
+      withdrawals: withdrawals.map((wd) => ({
+        id: wd._id,
+        userId: (wd.user as any)?.userId || "N/A",
+        userName: (wd.user as any)?.name || "Unknown",
+        userEmail: (wd.user as any)?.email || "N/A",
+        amount: parseFloat(wd.amount.toString()),
+        charges: parseFloat(wd.charges.toString()),
+        finalAmount: parseFloat(wd.finalAmount.toString()),
+        walletType: wd.walletType,
+        status: wd.status,
+        method: wd.method,
+        withdrawalId: wd.withdrawalId,
+        createdAt: wd.createdAt,
+      })),
+    },
+  });
+});
+
+/**
+ * Get Binary Report
+ * GET /api/v1/admin/reports/binary
+ */
+export const getBinaryReport = asyncHandler(async (req, res) => {
+  const wallets = await Wallet.find({ type: WalletType.BINARY });
+  const walletIds = wallets.map((w) => w._id);
+
+  const transactions = await WalletTransaction.find({
+    wallet: { $in: walletIds },
+  })
+    .populate("user", "userId name email")
+    .sort({ createdAt: -1 })
+    .lean();
+
+  const totalAmount = transactions.reduce((sum, tx) => sum + parseFloat(tx.amount.toString()), 0);
+  const totalCredits = transactions
+    .filter((tx) => tx.type === "credit")
+    .reduce((sum, tx) => sum + parseFloat(tx.amount.toString()), 0);
+
+  // Get binary tree stats
+  const binaryTrees = await BinaryTree.find({})
+    .populate("user", "userId name")
+    .lean();
+
+  const totalLeftBusiness = binaryTrees.reduce((sum, bt) => sum + parseFloat(bt.leftBusiness.toString()), 0);
+  const totalRightBusiness = binaryTrees.reduce((sum, bt) => sum + parseFloat(bt.rightBusiness.toString()), 0);
+
+  const response = res as any;
+  response.status(200).json({
+    status: "success",
+    data: {
+      summary: {
+        totalTransactions: transactions.length,
+        totalAmount,
+        totalCredits,
+        totalLeftBusiness,
+        totalRightBusiness,
+        totalBusiness: totalLeftBusiness + totalRightBusiness,
+      },
+      transactions: transactions.map((tx) => ({
+        id: tx._id,
+        userId: (tx.user as any)?.userId || "N/A",
+        userName: (tx.user as any)?.name || "Unknown",
+        userEmail: (tx.user as any)?.email || "N/A",
+        type: tx.type,
+        amount: parseFloat(tx.amount.toString()),
+        balanceBefore: parseFloat(tx.balanceBefore.toString()),
+        balanceAfter: parseFloat(tx.balanceAfter.toString()),
+        status: tx.status,
+        createdAt: tx.createdAt,
+      })),
+    },
+  });
+});
+
+/**
+ * Get Referral Report
+ * GET /api/v1/admin/reports/referral
+ */
+export const getReferralReport = asyncHandler(async (req, res) => {
+  const wallets = await Wallet.find({ type: WalletType.REFERRAL });
+  const walletIds = wallets.map((w) => w._id);
+
+  const transactions = await WalletTransaction.find({
+    wallet: { $in: walletIds },
+  })
+    .populate("user", "userId name email")
+    .sort({ createdAt: -1 })
+    .lean();
+
+  const totalAmount = transactions.reduce((sum, tx) => sum + parseFloat(tx.amount.toString()), 0);
+  const totalCredits = transactions
+    .filter((tx) => tx.type === "credit")
+    .reduce((sum, tx) => sum + parseFloat(tx.amount.toString()), 0);
+
+  // Get referral stats by user
+  const userReferrals = new Map();
+  transactions.forEach((tx) => {
+    const userId = (tx.user as any)?._id?.toString() || "unknown";
+    if (!userReferrals.has(userId)) {
+      userReferrals.set(userId, {
+        userId: (tx.user as any)?.userId || "N/A",
+        userName: (tx.user as any)?.name || "Unknown",
+        userEmail: (tx.user as any)?.email || "N/A",
+        totalReferralBonus: 0,
+        referralCount: 0,
+      });
+    }
+    const user = userReferrals.get(userId);
+    if (tx.type === "credit") {
+      user.totalReferralBonus += parseFloat(tx.amount.toString());
+      user.referralCount += 1;
+    }
+  });
+
+  const response = res as any;
+  response.status(200).json({
+    status: "success",
+    data: {
+      summary: {
+        totalTransactions: transactions.length,
+        totalAmount,
+        totalCredits,
+        totalUsers: userReferrals.size,
+      },
+      userStats: Array.from(userReferrals.values()),
+      transactions: transactions.map((tx) => ({
+        id: tx._id,
+        userId: (tx.user as any)?.userId || "N/A",
+        userName: (tx.user as any)?.name || "Unknown",
+        userEmail: (tx.user as any)?.email || "N/A",
+        type: tx.type,
+        amount: parseFloat(tx.amount.toString()),
+        balanceBefore: parseFloat(tx.balanceBefore.toString()),
+        balanceAfter: parseFloat(tx.balanceAfter.toString()),
+        status: tx.status,
+        createdAt: tx.createdAt,
+      })),
+    },
+  });
+});
+
+/**
+ * Get ROI Report
+ * GET /api/v1/admin/reports/roi
+ */
+export const getROIReport = asyncHandler(async (req, res) => {
+  const wallets = await Wallet.find({ type: WalletType.ROI });
+  const walletIds = wallets.map((w) => w._id);
+
+  const transactions = await WalletTransaction.find({
+    wallet: { $in: walletIds },
+  })
+    .populate("user", "userId name email")
+    .sort({ createdAt: -1 })
+    .lean();
+
+  const totalAmount = transactions.reduce((sum, tx) => sum + parseFloat(tx.amount.toString()), 0);
+  const totalCredits = transactions
+    .filter((tx) => tx.type === "credit")
+    .reduce((sum, tx) => sum + parseFloat(tx.amount.toString()), 0);
+
+  // Get ROI stats from investments
+  const investments = await Investment.find({})
+    .populate("user", "userId name email")
+    .populate("packageId", "packageName roi")
+    .lean();
+
+  const totalROIEarned = investments.reduce((sum, inv) => sum + parseFloat((inv.totalRoiEarned?.toString() || "0")), 0);
+  const totalInvested = investments.reduce((sum, inv) => sum + parseFloat(inv.investedAmount.toString()), 0);
+
+  // Get ROI by user
+  const userROI = new Map();
+  transactions.forEach((tx) => {
+    if (tx.type === "credit") {
+      const userId = (tx.user as any)?._id?.toString() || "unknown";
+      if (!userROI.has(userId)) {
+        userROI.set(userId, {
+          userId: (tx.user as any)?.userId || "N/A",
+          userName: (tx.user as any)?.name || "Unknown",
+          userEmail: (tx.user as any)?.email || "N/A",
+          totalROI: 0,
+          roiCount: 0,
+        });
+      }
+      const user = userROI.get(userId);
+      user.totalROI += parseFloat(tx.amount.toString());
+      user.roiCount += 1;
+    }
+  });
+
+  const response = res as any;
+  response.status(200).json({
+    status: "success",
+    data: {
+      summary: {
+        totalTransactions: transactions.length,
+        totalAmount,
+        totalCredits,
+        totalROIEarned,
+        totalInvested,
+        roiPercentage: totalInvested > 0 ? (totalROIEarned / totalInvested) * 100 : 0,
+      },
+      userStats: Array.from(userROI.values()),
+      transactions: transactions.map((tx) => ({
+        id: tx._id,
+        userId: (tx.user as any)?.userId || "N/A",
+        userName: (tx.user as any)?.name || "Unknown",
+        userEmail: (tx.user as any)?.email || "N/A",
+        type: tx.type,
+        amount: parseFloat(tx.amount.toString()),
+        balanceBefore: parseFloat(tx.balanceBefore.toString()),
+        balanceAfter: parseFloat(tx.balanceAfter.toString()),
+        status: tx.status,
+        createdAt: tx.createdAt,
+      })),
+    },
+  });
+});
+
+/**
+ * Admin: Create investment for a user
+ * POST /api/v1/admin/investments/create
+ */
+export const adminCreateInvestment = asyncHandler(async (req, res) => {
+  const body = (req as any).body;
+  const { userId, packageId, amount, type = "admin" } = body as {
+    userId: string;
+    packageId: string;
+    amount: number;
+    type?: string;
+  };
+
+  if (!userId || !packageId || !amount) {
+    throw new AppError("User ID, Package ID, and amount are required", 400);
+  }
+
+  if (!Types.ObjectId.isValid(userId)) {
+    throw new AppError("Invalid user ID", 400);
+  }
+
+  if (!Types.ObjectId.isValid(packageId)) {
+    throw new AppError("Invalid package ID", 400);
+  }
+
+  // Find user
+  const user = await User.findById(userId);
+  if (!user) {
+    throw new AppError("User not found", 404);
+  }
+
+  // Generate a unique payment ID for admin-created investments
+  const paymentId = `ADMIN_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+
+  // Use the existing processInvestment service
+  const { processInvestment } = await import("../services/investment.service");
+  const investment = await processInvestment(
+    user._id as Types.ObjectId,
+    new Types.ObjectId(packageId),
+    amount,
+    paymentId,
+    undefined // No voucher for admin-created investments
+  );
+
+  // Update investment type to "admin" if specified
+  if (type === "admin") {
+    investment.type = "admin";
+    await investment.save();
+  }
+
+  // Get package details for response
+  const pkg = await Package.findById(packageId);
+  
+  // Send investment confirmation email
+  try {
+    if (user?.email && pkg) {
+      const { sendInvestmentPurchaseEmail } = await import("../lib/mail-service/email.service");
+      const startDateStr = investment.startDate instanceof Date 
+        ? investment.startDate.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+          })
+        : new Date(investment.startDate || Date.now()).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+          });
+
+      const endDateStr = investment.endDate instanceof Date
+        ? investment.endDate.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+          })
+        : new Date(investment.endDate || Date.now() + (pkg.duration || 150) * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+          });
+
+      const clientUrl = process.env.CLIENT_URL || process.env.FRONTEND_URL || 'http://localhost:3000';
+      const dashboardLink = `${clientUrl}/investments`;
+
+      sendInvestmentPurchaseEmail({
+        to: user.email,
+        name: user.name || 'User',
+        packageName: pkg.packageName || 'Investment Package',
+        investmentAmount: Number(amount),
+        duration: investment.durationDays || pkg.duration || 150,
+        totalOutputPct: investment.totalOutputPct || pkg.totalOutputPct || 225,
+        startDate: startDateStr,
+        endDate: endDateStr,
+        dashboardLink,
+      }).catch((error) => {
+        console.error('Failed to send investment purchase confirmation email:', error);
+      });
+    }
+  } catch (error) {
+    console.error('Error preparing investment purchase confirmation email:', error);
+  }
+
+  const response = res as any;
+  response.status(201).json({
+    status: "success",
+    message: "Investment created successfully for user",
+    data: {
+      investment: {
+        id: investment._id,
+        userId: user.userId,
+        userName: user.name,
+        packageId: investment.packageId,
+        packageName: pkg?.packageName,
+        investedAmount: parseFloat(investment.investedAmount.toString()),
+        type: investment.type,
+        createdAt: investment.createdAt,
+      },
+    },
+  });
+});
+
+/**
+ * Get all tickets
+ * GET /api/v1/admin/tickets
+ */
+export const getAllTickets = asyncHandler(async (req, res) => {
+  const { status, page = 1, limit = 50 } = req.query;
+  const skip = (Number(page) - 1) * Number(limit);
+
+  const { Ticket } = await import("../models/Ticket");
+  
+  const query: any = {};
+  if (status) {
+    query.status = status;
+  }
+
+  const tickets = await Ticket.find(query)
+    .populate("raisedBy", "userId name email")
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(Number(limit))
+    .lean();
+
+  const total = await Ticket.countDocuments(query);
+
+  const formattedTickets = tickets.map((ticket: any) => ({
+    id: ticket._id,
+    raisedBy: {
+      userId: (ticket.raisedBy as any)?.userId || "N/A",
+      name: (ticket.raisedBy as any)?.name || "Unknown",
+      email: (ticket.raisedBy as any)?.email || "N/A",
+    },
+    department: ticket.department,
+    service: ticket.service,
+    subject: ticket.subject,
+    description: ticket.description,
+    status: ticket.status,
+    document: ticket.document,
+    reply: ticket.reply,
+    createdAt: ticket.createdAt,
+    updatedAt: ticket.updatedAt,
+  }));
+
+  const response = res as any;
+  response.status(200).json({
+    status: "success",
+    data: {
+      tickets: formattedTickets,
+      pagination: {
+        page: Number(page),
+        limit: Number(limit),
+        total,
+        pages: Math.ceil(total / Number(limit)),
+      },
+    },
+  });
+});
+
+/**
+ * Update ticket status
+ * PUT /api/v1/admin/tickets/:ticketId
+ */
+export const updateTicket = asyncHandler(async (req, res) => {
+  const { ticketId } = req.params;
+  const body = (req as any).body;
+  const { status, reply } = body as {
+    status?: "Open" | "Closed" | "In Progress";
+    reply?: string;
+  };
+
+  if (!Types.ObjectId.isValid(ticketId)) {
+    throw new AppError("Invalid ticket ID", 400);
+  }
+
+  const { Ticket } = await import("../models/Ticket");
+  const ticket = await Ticket.findById(ticketId).populate("raisedBy", "userId name email");
+  
+  if (!ticket) {
+    throw new AppError("Ticket not found", 404);
+  }
+
+  const oldStatus = ticket.status;
+
+  if (status) {
+    if (!["Open", "Closed", "In Progress"].includes(status)) {
+      throw new AppError("Invalid status. Must be Open, Closed, or In Progress", 400);
+    }
+    ticket.status = status as "Open" | "Closed" | "In Progress";
+  }
+
+  if (reply !== undefined) {
+    ticket.reply = reply;
+  }
+
+  await ticket.save();
+
+  // Send email notification if status changed
+  if (status && status !== oldStatus && (ticket.raisedBy as any)?.email) {
+    try {
+      const { sendTicketStatusUpdateEmail } = await import("../lib/mail-service/email.service");
+      sendTicketStatusUpdateEmail({
+        to: (ticket.raisedBy as any).email,
+        name: (ticket.raisedBy as any).name || "User",
+        ticketId: ticketId,
+        subject: ticket.subject,
+        oldStatus,
+        newStatus: status,
+        reply: reply || ticket.reply || "",
+      }).catch((error) => {
+        console.error('Failed to send ticket status update email:', error);
+      });
+    } catch (error) {
+      console.error('Error preparing ticket status update email:', error);
+    }
+  }
+
+  const response = res as any;
+  response.status(200).json({
+    status: "success",
+    message: "Ticket updated successfully",
+    data: {
+      ticket: {
+        id: ticket._id,
+        raisedBy: {
+          userId: (ticket.raisedBy as any)?.userId || "N/A",
+          name: (ticket.raisedBy as any)?.name || "Unknown",
+          email: (ticket.raisedBy as any)?.email || "N/A",
+        },
+        department: ticket.department,
+        service: ticket.service,
+        subject: ticket.subject,
+        description: ticket.description,
+        status: ticket.status,
+        document: ticket.document,
+        reply: ticket.reply,
+        createdAt: ticket.createdAt,
+        updatedAt: ticket.updatedAt,
+      },
+    },
+  });
+});
+
 export const changeUserPassword = asyncHandler(async (req, res) => {
   const { userId } = req.params;
   const body = (req as any).body;

@@ -6,6 +6,8 @@ import WithdrawalCreatedEmail from './mail-templates/withdrawal-created';
 import WithdrawalApprovedEmail from './mail-templates/withdrawal-approved';
 import WithdrawalRejectedEmail from './mail-templates/withdrawal-rejected';
 import PasswordResetEmail from './mail-templates/password-reset';
+import TicketCreatedEmail from './mail-templates/ticket-created';
+import TicketStatusUpdateEmail from './mail-templates/ticket-status-update';
 
 /**
  * Email Service
@@ -311,6 +313,96 @@ export const sendPasswordResetEmail = async ({
   } catch (error: any) {
     console.error(`❌ Failed to send password reset email to ${to}:`, error.message);
     // Don't throw error - we don't want email failures to break password reset flow
+  }
+};
+
+interface SendTicketCreatedEmailParams {
+  to: string;
+  name: string;
+  ticketId: string;
+  subject: string;
+  department: string;
+}
+
+/**
+ * Send ticket created email
+ */
+export const sendTicketCreatedEmail = async ({
+  to,
+  name,
+  ticketId,
+  subject,
+  department,
+}: SendTicketCreatedEmailParams): Promise<void> => {
+  try {
+    const emailHtml = await render(
+      React.createElement(TicketCreatedEmail, {
+        name,
+        ticketId,
+        subject,
+        department,
+      })
+    );
+
+    const mailOptions = {
+      from: process.env.EMAIL_USER || 'noreply@cneox.com',
+      to,
+      subject: `Support Ticket Created - ${subject}`,
+      html: emailHtml,
+    };
+
+    await auth.sendMail(mailOptions);
+    console.log(`✅ Ticket created email sent to ${to}`);
+  } catch (error: any) {
+    console.error(`❌ Failed to send ticket created email to ${to}:`, error.message);
+  }
+};
+
+interface SendTicketStatusUpdateEmailParams {
+  to: string;
+  name: string;
+  ticketId: string;
+  subject: string;
+  oldStatus: string;
+  newStatus: string;
+  reply?: string;
+}
+
+/**
+ * Send ticket status update email
+ */
+export const sendTicketStatusUpdateEmail = async ({
+  to,
+  name,
+  ticketId,
+  subject,
+  oldStatus,
+  newStatus,
+  reply,
+}: SendTicketStatusUpdateEmailParams): Promise<void> => {
+  try {
+    const emailHtml = await render(
+      React.createElement(TicketStatusUpdateEmail, {
+        name,
+        ticketId,
+        subject,
+        oldStatus,
+        newStatus,
+        reply,
+      })
+    );
+
+    const mailOptions = {
+      from: process.env.EMAIL_USER || 'noreply@cneox.com',
+      to,
+      subject: `Ticket Status Updated - ${subject}`,
+      html: emailHtml,
+    };
+
+    await auth.sendMail(mailOptions);
+    console.log(`✅ Ticket status update email sent to ${to}`);
+  } catch (error: any) {
+    console.error(`❌ Failed to send ticket status update email to ${to}:`, error.message);
   }
 };
 

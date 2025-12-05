@@ -4,3 +4,7 @@ count sub tabs like create-investment , powerlag account , free account
 create investment will add a investment package in users by taking the user id which is croen-000001
 
 powerlag account will do 
+
+
+cd server
+npm run create:children CROWN-000000
