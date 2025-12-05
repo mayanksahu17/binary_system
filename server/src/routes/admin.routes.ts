@@ -17,6 +17,18 @@ import {
   getNOWPaymentsStatus,
   updateNOWPaymentsStatus,
   changeUserPassword,
+  getAdminReports,
+  getDailyBusinessReport,
+  getNOWPaymentsReport,
+  getCountryBusinessReport,
+  getInvestmentsReport,
+  getWithdrawalsReport,
+  getBinaryReport,
+  getReferralReport,
+  getROIReport,
+  adminCreateInvestment,
+  getAllTickets,
+  updateTicket,
   getAllVouchers,
   createVoucherForUser,
 } from "../controllers/admin.controller";
@@ -70,13 +82,29 @@ router.delete("/users/:userId", requireAdminAuth, deleteUser);
 // Admin statistics
 router.get("/statistics", requireAdminAuth, getAdminStatistics);
 
+// Admin reports
+router.get("/reports", requireAdminAuth, getAdminReports);
+router.get("/reports/daily-business", requireAdminAuth, getDailyBusinessReport);
+router.get("/reports/nowpayments", requireAdminAuth, getNOWPaymentsReport);
+router.get("/reports/country-business", requireAdminAuth, getCountryBusinessReport);
+router.get("/reports/investments", requireAdminAuth, getInvestmentsReport);
+router.get("/reports/withdrawals", requireAdminAuth, getWithdrawalsReport);
+router.get("/reports/binary", requireAdminAuth, getBinaryReport);
+router.get("/reports/referral", requireAdminAuth, getReferralReport);
+router.get("/reports/roi", requireAdminAuth, getROIReport);
+
 // Withdrawal management
 router.get("/withdrawals", requireAdminAuth, getAllWithdrawals);
 router.post("/withdrawals/:id/approve", requireAdminAuth, approveWithdrawal);
 router.post("/withdrawals/:id/reject", requireAdminAuth, rejectWithdrawal);
 
 // Investment management
+router.post("/investments/create", requireAdminAuth, adminCreateInvestment);
 router.delete("/investments/flush-all", requireAdminAuth, flushAllInvestments);
+
+// Ticket management
+router.get("/tickets", requireAdminAuth, getAllTickets);
+router.put("/tickets/:ticketId", requireAdminAuth, updateTicket);
 
 // Settings management
 router.get("/settings/nowpayments", requireAdminAuth, getNOWPaymentsStatus);

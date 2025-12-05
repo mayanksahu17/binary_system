@@ -479,11 +479,30 @@ export const getUserReports = asyncHandler(async (req, res) => {
   const referralTransactions = transactions.filter(
     (tx) => (tx.wallet as any)?.type === WalletType.REFERRAL
   );
+  const investmentTransactions = transactions.filter(
+    (tx) => (tx.wallet as any)?.type === WalletType.INVESTMENT
+  );
 
   // Get withdrawals
   const withdrawals = await Withdrawal.find({ user: userId })
     .sort({ createdAt: -1 })
     .lean();
+
+  // Get investments for investment transactions
+  const investmentIds = investmentTransactions
+    .map((tx) => tx.txRef)
+    .filter((id): id is string => !!id);
+  
+  const investments = await Investment.find({
+    _id: { $in: investmentIds.map((id) => new Types.ObjectId(id)) },
+  })
+    .populate("packageId", "packageName roi duration")
+    .lean();
+
+  const investmentMap = new Map();
+  investments.forEach((inv) => {
+    investmentMap.set(inv._id.toString(), inv);
+  });
 
   const formatTransaction = (tx: any) => ({
     id: tx._id,
@@ -497,6 +516,31 @@ export const getUserReports = asyncHandler(async (req, res) => {
     meta: tx.meta,
     createdAt: tx.createdAt,
   });
+
+  const formatInvestmentTransaction = (tx: any) => {
+    const investment = tx.txRef ? investmentMap.get(tx.txRef) : null;
+    return {
+      id: tx._id,
+      type: tx.type,
+      amount: parseFloat(tx.amount.toString()),
+      currency: tx.currency || "USD",
+      balanceBefore: parseFloat(tx.balanceBefore.toString()),
+      balanceAfter: parseFloat(tx.balanceAfter.toString()),
+      status: tx.status,
+      txRef: tx.txRef,
+      investment: investment ? {
+        id: investment._id,
+        packageName: (investment.packageId as any)?.packageName || "N/A",
+        roi: (investment.packageId as any)?.roi || 0,
+        duration: (investment.packageId as any)?.duration || 0,
+        investedAmount: parseFloat(investment.investedAmount.toString()),
+        type: investment.type,
+        createdAt: investment.createdAt,
+      } : null,
+      meta: tx.meta,
+      createdAt: tx.createdAt,
+    };
+  };
 
   const formatWithdrawal = (wd: any) => ({
     id: wd._id,
@@ -517,6 +561,7 @@ export const getUserReports = asyncHandler(async (req, res) => {
       roi: roiTransactions.map(formatTransaction),
       binary: binaryTransactions.map(formatTransaction),
       referral: referralTransactions.map(formatTransaction),
+      investment: investmentTransactions.map(formatInvestmentTransaction),
       withdrawals: withdrawals.map(formatWithdrawal),
     },
   });
@@ -1072,6 +1117,128 @@ export const exchangeWalletFunds = asyncHandler(async (req, res) => {
  * Get user's career progress (User)
  * GET /api/v1/user/career-progress
  */
+/**
+ * Create ticket
+ * POST /api/v1/user/tickets
+ */
+export const createTicket = asyncHandler(async (req, res) => {
+  const userId = (req as any).user?.id;
+  if (!userId) {
+    throw new AppError("User not authenticated", 401);
+  }
+
+  const body = req.body;
+  const { department, service, subject, description, document } = body as {
+    department: "Admin support" | "Technical Support";
+    service?: "Package Activation" | "Downline Activation" | "Authentication";
+    subject: string;
+    description?: string;
+    document?: string;
+  };
+
+  if (!department || !subject) {
+    throw new AppError("Department and subject are required", 400);
+  }
+
+  if (!["Admin support", "Technical Support"].includes(department)) {
+    throw new AppError("Invalid department. Must be 'Admin support' or 'Technical Support'", 400);
+  }
+
+  const { Ticket } = await import("../models/Ticket");
+  
+  const ticket = await Ticket.create({
+    raisedBy: userId,
+    department,
+    service: service || undefined,
+    subject,
+    description: description || undefined,
+    document: document || undefined,
+    status: "Open",
+  });
+
+  const populatedTicket = await Ticket.findById(ticket._id)
+    .populate("raisedBy", "userId name email")
+    .lean();
+
+  // Send confirmation email to user
+  try {
+    if ((populatedTicket?.raisedBy as any)?.email) {
+      const { sendTicketCreatedEmail } = await import("../lib/mail-service/email.service");
+      sendTicketCreatedEmail({
+        to: (populatedTicket.raisedBy as any).email,
+        name: (populatedTicket.raisedBy as any).name || "User",
+        ticketId: ticket._id.toString(),
+        subject: ticket.subject,
+        department: ticket.department,
+      }).catch((error) => {
+        console.error('Failed to send ticket creation email:', error);
+      });
+    }
+  } catch (error) {
+    console.error('Error preparing ticket creation email:', error);
+  }
+
+  const response = res as any;
+  response.status(201).json({
+    status: "success",
+    message: "Ticket created successfully",
+    data: {
+      ticket: {
+        id: ticket._id,
+        raisedBy: {
+          userId: (populatedTicket?.raisedBy as any)?.userId || "N/A",
+          name: (populatedTicket?.raisedBy as any)?.name || "Unknown",
+          email: (populatedTicket?.raisedBy as any)?.email || "N/A",
+        },
+        department: ticket.department,
+        service: ticket.service,
+        subject: ticket.subject,
+        description: ticket.description,
+        status: ticket.status,
+        document: ticket.document,
+        createdAt: ticket.createdAt,
+      },
+    },
+  });
+});
+
+/**
+ * Get user tickets
+ * GET /api/v1/user/tickets
+ */
+export const getUserTickets = asyncHandler(async (req, res) => {
+  const userId = (req as any).user?.id;
+  if (!userId) {
+    throw new AppError("User not authenticated", 401);
+  }
+
+  const { Ticket } = await import("../models/Ticket");
+  const tickets = await Ticket.find({ raisedBy: userId })
+    .sort({ createdAt: -1 })
+    .lean();
+
+  const formattedTickets = tickets.map((ticket) => ({
+    id: ticket._id,
+    department: ticket.department,
+    service: ticket.service,
+    subject: ticket.subject,
+    description: ticket.description,
+    status: ticket.status,
+    document: ticket.document,
+    reply: ticket.reply,
+    createdAt: ticket.createdAt,
+    updatedAt: ticket.updatedAt,
+  }));
+
+  const response = res as any;
+  response.status(200).json({
+    status: "success",
+    data: {
+      tickets: formattedTickets,
+    },
+  });
+});
+
 export const getUserCareerProgressController = asyncHandler(async (req, res) => {
   const userId = (req as any).user?.id;
   if (!userId) {

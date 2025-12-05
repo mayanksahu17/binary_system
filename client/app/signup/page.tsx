@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
+import { countries } from '@/lib/countries';
 
 function SignupContent() {
   const searchParams = useSearchParams();
@@ -13,6 +14,7 @@ function SignupContent() {
     phone: '',
     password: '',
     confirmPassword: '',
+    country: '',
     referrerId: '',
     position: 'left' as 'left' | 'right',
   });
@@ -135,6 +137,7 @@ function SignupContent() {
       } else {
         if (formData.email) signupData.email = formData.email;
         if (formData.phone) signupData.phone = formData.phone;
+        if (formData.country) signupData.country = formData.country;
         if (formData.referrerId) signupData.referrerId = formData.referrerId;
         if (formData.position) signupData.position = formData.position;
       }
@@ -256,6 +259,26 @@ function SignupContent() {
                     onChange={handleChange}
                     required
                   />
+                </div>
+                <div>
+                  <label htmlFor="country" className="block text-sm font-semibold text-black mb-2">
+                    Country <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    id="country"
+                    name="country"
+                    required
+                    className="appearance-none block w-full px-4 py-3 border-2 border-gray-300 bg-white rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm text-black transition-all"
+                    value={formData.country}
+                    onChange={handleChange}
+                  >
+                    <option value="">Select your country</option>
+                    {countries.map((country) => (
+                      <option key={country.code} value={country.name}>
+                        {country.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label htmlFor="referrerId" className="block text-sm font-semibold text-black mb-2">

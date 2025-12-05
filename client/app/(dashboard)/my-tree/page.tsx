@@ -103,6 +103,12 @@ const CustomNode = memo(({ data }: { data: CustomNodeData }) => {
             </>
           )}
         </div>
+        <div className="node-investment">
+          <span className="investment-label">Total Investment</span>
+          <span className="investment-value">
+            ${parseFloat(user.totalInvestment || '0').toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </span>
+        </div>
       </div>
       <Handle type="source" position={Position.Bottom} />
       {showPopup && (
@@ -552,6 +558,27 @@ export default function MyTreePage() {
             display: flex;
             flex-direction: column;
             align-items: center;
+          }
+          .node-investment {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 10px;
+            padding: 8px 12px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            border-top: 2px solid rgba(255, 255, 255, 0.3);
+          }
+          .investment-label {
+            font-size: 0.75em;
+            color: rgba(255, 255, 255, 0.9);
+            font-weight: 600;
+          }
+          .investment-value {
+            font-weight: bold;
+            font-size: 1em;
+            color: white;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
           }
           .node-content {
             pointer-events: none;

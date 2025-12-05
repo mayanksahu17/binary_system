@@ -82,11 +82,31 @@ class ApiClient {
     email?: string;
     phone?: string;
     password: string;
+    country?: string;
     referrerId?: string;
     position?: 'left' | 'right';
   }) {
     return this.request<{ user: any; token: string }>('/auth/signup', {
       method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateProfile(data: {
+    name?: string;
+    email?: string;
+    phone?: string;
+    country?: string;
+    walletAddress?: string;
+    bankAccount?: {
+      accountNumber?: string;
+      bankName?: string;
+      ifscCode?: string;
+      accountHolderName?: string;
+    };
+  }) {
+    return this.request<{ user: any }>('/user/profile', {
+      method: 'PUT',
       body: JSON.stringify(data),
     });
   }
@@ -456,6 +476,106 @@ class ApiClient {
       totalReferralBonus: string;
       totalBinaryBonus: string;
     }>('/admin/statistics', {
+      method: 'GET',
+    });
+  }
+
+  async getAdminReports() {
+    return this.request<{
+      roi: any[];
+      binary: any[];
+      referral: any[];
+      investment: any[];
+      withdrawals: any[];
+    }>('/admin/reports', {
+      method: 'GET',
+    });
+  }
+
+  async getDailyBusinessReport(date?: string) {
+    const params = date ? `?date=${date}` : '';
+    return this.request<any>(`/admin/reports/daily-business${params}`, {
+      method: 'GET',
+    });
+  }
+
+  async getNOWPaymentsReport() {
+    return this.request<any>('/admin/reports/nowpayments', {
+      method: 'GET',
+    });
+  }
+
+  async getCountryBusinessReport() {
+    return this.request<any>('/admin/reports/country-business', {
+      method: 'GET',
+    });
+  }
+
+  async getInvestmentsReport() {
+    return this.request<any>('/admin/reports/investments', {
+      method: 'GET',
+    });
+  }
+
+  async getWithdrawalsReport() {
+    return this.request<any>('/admin/reports/withdrawals', {
+      method: 'GET',
+    });
+  }
+
+  async getBinaryReport() {
+    return this.request<any>('/admin/reports/binary', {
+      method: 'GET',
+    });
+  }
+
+  async getReferralReport() {
+    return this.request<any>('/admin/reports/referral', {
+      method: 'GET',
+    });
+  }
+
+  async getROIReport() {
+    return this.request<any>('/admin/reports/roi', {
+      method: 'GET',
+    });
+  }
+
+  async adminCreateInvestment(data: { userId: string; packageId: string; amount: number; type?: string }) {
+    return this.request<{ investment: any }>('/admin/investments/create', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getAllTickets(params?: { page?: number; limit?: number; status?: string }) {
+    const queryParams = new URLSearchParams();
+    if (params?.page) queryParams.append('page', params.page.toString());
+    if (params?.limit) queryParams.append('limit', params.limit.toString());
+    if (params?.status) queryParams.append('status', params.status);
+    const query = queryParams.toString();
+    return this.request<{ tickets: any[]; pagination: any }>(
+      `/admin/tickets${query ? `?${query}` : ''}`,
+      { method: 'GET' }
+    );
+  }
+
+  async updateTicket(ticketId: string, data: { status?: string; reply?: string }) {
+    return this.request<{ ticket: any }>(`/admin/tickets/${ticketId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async createTicket(data: { department: string; service?: string; subject: string; description?: string; document?: string }) {
+    return this.request<{ ticket: any }>('/user/tickets', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getUserTickets() {
+    return this.request<{ tickets: any[] }>('/user/tickets', {
       method: 'GET',
     });
   }

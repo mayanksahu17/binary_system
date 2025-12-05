@@ -8,6 +8,7 @@ export interface IUser extends Document {
   email?: string;
   phone?: string;
   password?: string;
+  country?: string;
   referrer?: Types.ObjectId | null;
   position?: "left" | "right" | null;
   status?: "active" | "inactive" | "suspended" | "blocked" | "suspected";
@@ -31,6 +32,7 @@ const UserSchema = new Schema<IUser>({
   email: { type: String, index: true, sparse: true },
   phone: { type: String, index: true, sparse: true },
   password: { type: String },
+  country: { type: String, index: true },
   referrer: { type: Schema.Types.ObjectId, ref: "User", index: true, default: null },
   position: { type: String, enum: ["left", "right"], default: null },
   status: { type: String, enum: ["active","inactive","suspended","blocked","suspected"], default: "active" },

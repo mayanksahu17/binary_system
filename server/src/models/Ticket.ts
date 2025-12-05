@@ -10,6 +10,8 @@ export interface ITicket extends Document {
   status: "Open" | "Closed" | "In Progress";
   document?: string;
   reply?: string;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 const TicketSchema = new Schema<ITicket>({

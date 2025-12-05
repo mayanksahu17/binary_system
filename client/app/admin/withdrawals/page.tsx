@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useConfirm } from '@/contexts/ConfirmContext';
 import { api } from '@/lib/api';
 import toast from 'react-hot-toast';
 
@@ -67,9 +68,15 @@ export default function AdminWithdrawals() {
   };
 
   const handleApprove = async (withdrawalId: string) => {
-    if (!confirm('Are you sure you want to approve this withdrawal? This will deduct the amount from the user\'s wallet.')) {
-      return;
-    }
+    const confirmed = await confirm({
+      title: 'Approve Withdrawal',
+      message: 'Are you sure you want to approve this withdrawal? This will deduct the amount from the user\'s wallet.',
+      variant: 'info',
+      confirmText: 'Yes, Approve',
+      cancelText: 'Cancel',
+    });
+
+    if (!confirmed) return;
 
     try {
       setProcessingId(withdrawalId);
@@ -88,6 +95,16 @@ export default function AdminWithdrawals() {
   };
 
   const handleReject = async (withdrawalId: string) => {
+    const confirmed = await confirm({
+      title: 'Reject Withdrawal',
+      message: 'Are you sure you want to reject this withdrawal? You can provide a reason in the next step.',
+      variant: 'warning',
+      confirmText: 'Yes, Reject',
+      cancelText: 'Cancel',
+    });
+
+    if (!confirmed) return;
+
     const reason = prompt('Please provide a reason for rejection (optional):');
     
     try {

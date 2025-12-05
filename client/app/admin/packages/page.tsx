@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useConfirm } from '@/contexts/ConfirmContext';
 import { api } from '@/lib/api';
+import toast from 'react-hot-toast';
 
 interface Package {
   _id?: string;
@@ -27,6 +29,7 @@ interface Package {
 
 export default function PackagesPage() {
   const { user, admin, loading: authLoading } = useAuth();
+  const { confirm } = useConfirm();
   const [packages, setPackages] = useState<Package[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -77,13 +80,22 @@ export default function PackagesPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this package? This action cannot be undone.')) return;
+    const confirmed = await confirm({
+      title: 'Delete Package',
+      message: 'Are you sure you want to delete this package? This action cannot be undone.',
+      variant: 'danger',
+      confirmText: 'Yes, Delete',
+      cancelText: 'Cancel',
+    });
+
+    if (!confirmed) return;
 
     try {
       setError('');
       setSuccess('');
       await api.deletePackage(id);
       setSuccess('Package deleted successfully');
+      toast.success('Package deleted successfully');
       fetchPackages();
       setTimeout(() => setSuccess(''), 3000);
     } catch (err: any) {
