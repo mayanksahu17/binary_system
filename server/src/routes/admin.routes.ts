@@ -17,8 +17,6 @@ import {
   getNOWPaymentsStatus,
   updateNOWPaymentsStatus,
   changeUserPassword,
-  getAllVouchers,
-  createVoucherForUser,
   getAdminReports,
   getDailyBusinessReport,
   getNOWPaymentsReport,
@@ -31,6 +29,8 @@ import {
   adminCreateInvestment,
   getAllTickets,
   updateTicket,
+  getAllVouchers,
+  createVoucherForUser,
 } from "../controllers/admin.controller";
 import {
   getAllPackages,
