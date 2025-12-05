@@ -104,6 +104,17 @@ export const createPayment = asyncHandler(async (req, res) => {
       voucherInvestmentValue = voucherAmount * multiplier;
     }
     
+    // Validate: Investment amount must be at least 2x the voucher purchase amount
+    const voucherPurchaseAmount = parseFloat(voucher.amount.toString());
+    const minimumInvestmentRequired = voucherPurchaseAmount * 2;
+    
+    if (investmentAmount < minimumInvestmentRequired) {
+      throw new AppError(
+        `To use this voucher, you must invest at least $${minimumInvestmentRequired.toLocaleString()} (2x the voucher purchase amount of $${voucherPurchaseAmount.toLocaleString()})`,
+        400
+      );
+    }
+    
     console.log(`[Voucher] Voucher ID: ${voucher.voucherId}, Amount: ${voucher.amount}, Investment Value: ${voucherInvestmentValue}, Investment Amount: ${investmentAmount}`);
     
     remainingAmount = Math.max(0, investmentAmount - voucherInvestmentValue);

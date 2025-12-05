@@ -472,12 +472,18 @@ export async function processInvestment(
         throw new AppError("Voucher has expired", 400);
       }
 
+      // Validate: Investment amount must be at least 2x the voucher purchase amount
+      const voucherPurchaseAmount = parseFloat(voucher.amount.toString());
+      const minimumInvestmentRequired = voucherPurchaseAmount * 2;
+      
+      if (amount < minimumInvestmentRequired) {
+        throw new AppError(
+          `To use this voucher, you must invest at least $${minimumInvestmentRequired.toLocaleString()} (2x the voucher purchase amount of $${voucherPurchaseAmount.toLocaleString()})`,
+          400
+        );
+      }
+
       // Verify voucher investment value
-      // IMPORTANT: Voucher can be used for investments up to its investment value
-      // Examples:
-      // - $100 voucher (investment value $200) can cover $100 investment ✅
-      // - $100 voucher (investment value $200) can cover $200 investment ✅
-      // - $100 voucher (investment value $200) can cover $300 investment (partial - remaining paid via gateway) ✅
       const voucherInvestmentValue = parseFloat(voucher.investmentValue.toString());
       if (voucherInvestmentValue < amount) {
         // Voucher doesn't cover full amount, but that's okay - remaining will be paid via gateway

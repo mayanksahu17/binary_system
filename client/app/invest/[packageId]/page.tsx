@@ -316,7 +316,7 @@ function InvestContent() {
                       Use Voucher (Optional)
                     </label>
                     <p className="text-xs text-gray-500 mb-2">
-                      💡 Tip: Vouchers can be used for investments up to their investment value. A $100 voucher (investment value $200) can cover any investment from $100 to $200.
+                      💡 Tip: To use a voucher, you must invest at least 2x the voucher purchase amount. A $100 voucher requires a minimum investment of $200.
                     </p>
                     <select
                       value={selectedVoucherId || ''}
@@ -337,29 +337,40 @@ function InvestContent() {
                     {selectedVoucherId && (() => {
                       const selectedVoucher = availableVouchers.find((v: any) => v.voucherId === selectedVoucherId);
                       if (selectedVoucher) {
-                        const voucherValue = selectedVoucher.investmentValue || selectedVoucher.amount * 2;
+                        const voucherPurchaseAmount = selectedVoucher.amount; // Purchase amount (e.g., $100)
+                        const voucherInvestmentValue = selectedVoucher.investmentValue || selectedVoucher.amount * 2; // Investment value (e.g., $200)
                         const investmentAmount = parseFloat(investAmount) || 0;
-                        // IMPORTANT: Voucher can cover ANY investment up to its investment value
-                        // Examples: $100 voucher (investment value $200) can cover:
-                        // - $100 investment ✅ (fully covered)
-                        // - $150 investment ✅ (fully covered)
-                        // - $200 investment ✅ (fully covered)
-                        // - $300 investment (partially covered - user pays $100)
-                        const remainingAmount = Math.max(0, investmentAmount - voucherValue);
-                        // Voucher covers full amount if investment amount is less than or equal to voucher investment value
-                        const voucherCoversFull = investmentAmount > 0 && voucherValue >= investmentAmount;
+                        const minimumInvestmentRequired = voucherPurchaseAmount * 2; // Must invest at least 2x purchase amount
+                        const meetsMinimumRequirement = investmentAmount >= minimumInvestmentRequired;
+                        const remainingAmount = Math.max(0, investmentAmount - voucherInvestmentValue);
                         
                         return (
                           <div className="text-sm text-gray-600 space-y-2">
                             <div className="flex justify-between">
+                              <span>Voucher Purchase Amount:</span>
+                              <span className="font-semibold text-gray-900">${voucherPurchaseAmount.toLocaleString()}</span>
+                            </div>
+                            <div className="flex justify-between">
                               <span>Voucher Investment Value:</span>
-                              <span className="font-semibold text-green-600">${voucherValue.toLocaleString()}</span>
+                              <span className="font-semibold text-green-600">${voucherInvestmentValue.toLocaleString()}</span>
                             </div>
                             <div className="flex justify-between">
                               <span>Your Investment Amount:</span>
                               <span className="font-semibold text-gray-900">${investmentAmount.toLocaleString()}</span>
                             </div>
-                            {investmentAmount > 0 && voucherValue >= investmentAmount ? (
+                            {!meetsMinimumRequirement && investmentAmount > 0 ? (
+                              <div className="p-3 bg-red-50 border border-red-200 rounded">
+                                <div className="text-red-700 font-semibold flex items-center">
+                                  <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                                  </svg>
+                                  ⚠️ Minimum Investment Required
+                                </div>
+                                <div className="text-xs text-red-600 mt-1">
+                                  To use this voucher, you must invest at least <strong>${minimumInvestmentRequired.toLocaleString()}</strong> (2x the voucher purchase amount of ${voucherPurchaseAmount.toLocaleString()}).
+                                </div>
+                              </div>
+                            ) : meetsMinimumRequirement && investmentAmount > 0 && voucherInvestmentValue >= investmentAmount ? (
                               <div className="p-2 bg-green-50 border border-green-200 rounded">
                                 <div className="text-green-700 font-semibold flex items-center">
                                   <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
@@ -371,14 +382,14 @@ function InvestContent() {
                                   Your ${investmentAmount.toLocaleString()} investment is fully covered. No additional payment required.
                                 </div>
                               </div>
-                            ) : investmentAmount > voucherValue ? (
+                            ) : meetsMinimumRequirement && investmentAmount > voucherInvestmentValue ? (
                               <div className="space-y-1">
                                 <div className="flex justify-between">
                                   <span>Remaining to Pay:</span>
                                   <span className="font-semibold text-orange-600">${remainingAmount.toLocaleString()}</span>
                                 </div>
                                 <div className="text-xs text-gray-500">
-                                  Voucher covers ${voucherValue.toLocaleString()}, pay remaining ${remainingAmount.toLocaleString()} via payment gateway
+                                  Voucher covers ${voucherInvestmentValue.toLocaleString()}, pay remaining ${remainingAmount.toLocaleString()} via payment gateway
                                 </div>
                               </div>
                             ) : null}
@@ -466,9 +477,49 @@ function InvestContent() {
                   );
                 })()}
 
+                {/* Voucher validation warning */}
+                {selectedVoucherId && (() => {
+                  const selectedVoucher = availableVouchers.find((v: any) => v.voucherId === selectedVoucherId);
+                  if (selectedVoucher) {
+                    const voucherPurchaseAmount = selectedVoucher.amount;
+                    const minimumInvestmentRequired = voucherPurchaseAmount * 2;
+                    const investmentAmount = parseFloat(investAmount) || 0;
+                    const meetsMinimumRequirement = investmentAmount >= minimumInvestmentRequired;
+                    
+                    if (!meetsMinimumRequirement && investmentAmount > 0) {
+                      return (
+                        <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded">
+                          <div className="text-yellow-800 text-sm font-semibold flex items-center">
+                            <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                            </svg>
+                            Warning: Minimum Investment Required
+                          </div>
+                          <div className="text-xs text-yellow-700 mt-1">
+                            To use this ${voucherPurchaseAmount.toLocaleString()} voucher, you must invest at least <strong>${minimumInvestmentRequired.toLocaleString()}</strong> (2x the voucher purchase amount).
+                          </div>
+                        </div>
+                      );
+                    }
+                  }
+                  return null;
+                })()}
+
                 <button
                   onClick={handleCreatePayment}
-                  disabled={creatingPayment || pkg.status !== 'Active' || !investAmount}
+                  disabled={(() => {
+                    if (creatingPayment || pkg.status !== 'Active' || !investAmount) return true;
+                    if (selectedVoucherId) {
+                      const selectedVoucher = availableVouchers.find((v: any) => v.voucherId === selectedVoucherId);
+                      if (selectedVoucher) {
+                        const voucherPurchaseAmount = selectedVoucher.amount;
+                        const minimumInvestmentRequired = voucherPurchaseAmount * 2;
+                        const investmentAmount = parseFloat(investAmount) || 0;
+                        return investmentAmount < minimumInvestmentRequired;
+                      }
+                    }
+                    return false;
+                  })()}
                   className="w-full px-6 py-4 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed font-semibold text-lg transition-all"
                 >
                   {creatingPayment ? 'Creating Payment...' : 'Proceed to Payment'}

@@ -100,15 +100,13 @@ export default function ReportsPage() {
     exportToCSV(
       transactions,
       title.toLowerCase().replace(/\s+/g, '_'),
-      ['Date', 'Type', 'Amount', 'Balance Before', 'Balance After', 'Status', 'Transaction Ref'],
+      ['Date & Time', 'Type', 'Amount', 'Status', 'Transaction ID'],
       (tx) => [
         new Date(tx.createdAt).toLocaleString(),
         tx.type.toUpperCase(),
         `$${tx.amount.toFixed(2)}`,
-        `$${tx.balanceBefore.toFixed(2)}`,
-        `$${tx.balanceAfter.toFixed(2)}`,
         tx.status,
-        tx.txRef || 'N/A'
+        tx.txRef || tx.id.substring(0, 8) || 'N/A'
       ]
     );
   };
@@ -117,7 +115,7 @@ export default function ReportsPage() {
     exportToCSV(
       transactions,
       'investment_transactions',
-      ['Date', 'Type', 'Amount', 'Package Name', 'ROI %', 'Duration (days)', 'Invested Amount', 'Investment Type', 'Balance Before', 'Balance After', 'Status', 'Investment ID'],
+      ['Date & Time', 'Type', 'Amount', 'Package Name', 'ROI %', 'Duration (days)', 'Invested Amount', 'Investment Type', 'Status', 'Transaction ID'],
       (tx) => [
         new Date(tx.createdAt).toLocaleString(),
         tx.type.toUpperCase(),
@@ -127,10 +125,8 @@ export default function ReportsPage() {
         tx.investment?.duration?.toString() || '0',
         `$${tx.investment?.investedAmount.toFixed(2) || '0.00'}`,
         tx.investment?.type || 'N/A',
-        `$${tx.balanceBefore.toFixed(2)}`,
-        `$${tx.balanceAfter.toFixed(2)}`,
         tx.status,
-        tx.txRef || 'N/A'
+        tx.txRef || tx.id.substring(0, 8) || 'N/A'
       ]
     );
   };
@@ -139,7 +135,7 @@ export default function ReportsPage() {
     exportToCSV(
       withdrawals,
       'withdrawals',
-      ['Date', 'Withdrawal ID', 'Amount', 'Charges', 'Final Amount', 'Wallet Type', 'Method', 'Status'],
+      ['Date & Time', 'Withdrawal ID', 'Amount', 'Charges', 'Final Amount', 'Wallet Type', 'Method', 'Status'],
       (wd) => [
         new Date(wd.createdAt).toLocaleString(),
         wd.withdrawalId || wd.id.substring(0, 8),
@@ -151,6 +147,14 @@ export default function ReportsPage() {
         wd.status
       ]
     );
+  };
+
+  const formatDateTime = (dateString: string) => {
+    const date = new Date(dateString);
+    return {
+      date: date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
+      time: date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    };
   };
 
   const renderTransactionTable = (transactions: Transaction[], title: string, showExport: boolean = true) => (
@@ -170,54 +174,54 @@ export default function ReportsPage() {
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date & Time</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Balance Before</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Balance After</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Transaction ID</th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {transactions.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
+                <td colSpan={5} className="px-6 py-4 text-center text-gray-500">
                   No transactions found
                 </td>
               </tr>
             ) : (
-              transactions.map((tx) => (
-                <tr key={tx.id}>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {new Date(tx.createdAt).toLocaleString()}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                      tx.type === 'credit' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                    }`}>
-                      {tx.type.toUpperCase()}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    ${tx.amount.toFixed(2)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    ${tx.balanceBefore.toFixed(2)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    ${tx.balanceAfter.toFixed(2)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                      tx.status === 'completed' ? 'bg-green-100 text-green-800' :
-                      tx.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                      'bg-red-100 text-red-800'
-                    }`}>
-                      {tx.status}
-                    </span>
-                  </td>
-                </tr>
-              ))
+              transactions.map((tx) => {
+                const { date, time } = formatDateTime(tx.createdAt);
+                return (
+                  <tr key={tx.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <div className="text-gray-900 font-medium">{date}</div>
+                      <div className="text-gray-500 text-xs">{time}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                        tx.type === 'credit' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                      }`}>
+                        {tx.type.toUpperCase()}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      ${tx.amount.toFixed(2)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                        tx.status === 'completed' ? 'bg-green-100 text-green-800' :
+                        tx.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-red-100 text-red-800'
+                      }`}>
+                        {tx.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-600">
+                      {tx.txRef || tx.id.substring(0, 8) || 'N/A'}
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
@@ -242,15 +246,15 @@ export default function ReportsPage() {
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date & Time</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Package</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ROI</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ROI %</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Invested Amount</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Balance Before</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Balance After</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Duration</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Transaction ID</th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
@@ -261,47 +265,51 @@ export default function ReportsPage() {
                 </td>
               </tr>
             ) : (
-              investmentTransactions.map((tx) => (
-                <tr key={tx.id}>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {new Date(tx.createdAt).toLocaleString()}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                      tx.type === 'credit' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                    }`}>
-                      {tx.type.toUpperCase()}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    ${tx.amount.toFixed(2)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {tx.investment?.packageName || 'N/A'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {tx.investment?.roi || 0}%
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    ${tx.investment?.investedAmount.toFixed(2) || '0.00'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    ${tx.balanceBefore.toFixed(2)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    ${tx.balanceAfter.toFixed(2)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                      tx.status === 'completed' ? 'bg-green-100 text-green-800' :
-                      tx.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                      'bg-red-100 text-red-800'
-                    }`}>
-                      {tx.status}
-                    </span>
-                  </td>
-                </tr>
-              ))
+              investmentTransactions.map((tx) => {
+                const { date, time } = formatDateTime(tx.createdAt);
+                return (
+                  <tr key={tx.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <div className="text-gray-900 font-medium">{date}</div>
+                      <div className="text-gray-500 text-xs">{time}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                        tx.type === 'credit' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                      }`}>
+                        {tx.type.toUpperCase()}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      ${tx.amount.toFixed(2)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
+                      {tx.investment?.packageName || 'N/A'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {tx.investment?.roi || 0}%
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      ${tx.investment?.investedAmount.toFixed(2) || '0.00'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {tx.investment?.duration || 0} days
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                        tx.status === 'completed' ? 'bg-green-100 text-green-800' :
+                        tx.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-red-100 text-red-800'
+                      }`}>
+                        {tx.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-600">
+                      {tx.txRef || tx.id.substring(0, 8) || 'N/A'}
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
@@ -326,7 +334,7 @@ export default function ReportsPage() {
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date & Time</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Withdrawal ID</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Charges</th>
@@ -344,40 +352,44 @@ export default function ReportsPage() {
                 </td>
               </tr>
             ) : (
-              withdrawals.map((wd) => (
-                <tr key={wd.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {new Date(wd.createdAt).toLocaleString()}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-600">
-                    {wd.withdrawalId || wd.id.substring(0, 8)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    ${wd.amount.toFixed(2)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    ${wd.charges.toFixed(2)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-green-600">
-                    ${wd.finalAmount.toFixed(2)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 capitalize">
-                    {wd.walletType}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 capitalize">
-                    {wd.method || 'crypto'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                      wd.status === 'approved' ? 'bg-green-100 text-green-800' :
-                      wd.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                      'bg-red-100 text-red-800'
-                    }`}>
-                      {wd.status}
-                    </span>
-                  </td>
-                </tr>
-              ))
+              withdrawals.map((wd) => {
+                const { date, time } = formatDateTime(wd.createdAt);
+                return (
+                  <tr key={wd.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <div className="text-gray-900 font-medium">{date}</div>
+                      <div className="text-gray-500 text-xs">{time}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-600">
+                      {wd.withdrawalId || wd.id.substring(0, 8)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      ${wd.amount.toFixed(2)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      ${wd.charges.toFixed(2)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-green-600">
+                      ${wd.finalAmount.toFixed(2)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 capitalize">
+                      {wd.walletType}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 capitalize">
+                      {wd.method || 'crypto'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                        wd.status === 'approved' ? 'bg-green-100 text-green-800' :
+                        wd.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-red-100 text-red-800'
+                      }`}>
+                        {wd.status}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
