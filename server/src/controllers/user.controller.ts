@@ -96,7 +96,7 @@ export const createInvestment = asyncHandler(async (req, res) => {
   }
 
   const body = req.body;
-  const { packageId, amount, currency = "USD", paymentId } = body;
+  const { packageId, amount, currency = "USD", paymentId, voucherId } = body;
 
   if (!packageId || !amount) {
     throw new AppError("Package ID and amount are required", 400);
@@ -108,11 +108,23 @@ export const createInvestment = asyncHandler(async (req, res) => {
 
   let finalPaymentId: string;
   let paymentResult: any = null;
+  let finalVoucherId = voucherId;
 
   // If paymentId is provided (from NOWPayments), use it. Otherwise, process mock payment.
   if (paymentId) {
     // Payment already processed via NOWPayments, use the provided paymentId
     finalPaymentId = paymentId;
+    
+    // If voucherId is not provided but payment has voucher in meta, extract it
+    if (!finalVoucherId) {
+      const { Payment } = await import("../models/Payment");
+      const payment = await Payment.findOne({ paymentId, user: userId });
+      if (payment && payment.meta && (payment.meta as any).voucherId) {
+        // Extract voucherId from payment meta if not provided
+        finalVoucherId = (payment.meta as any).voucherId;
+      }
+    }
+    
     // Create payment result structure for response
     paymentResult = {
       paymentId: paymentId,
@@ -139,7 +151,8 @@ export const createInvestment = asyncHandler(async (req, res) => {
     new Types.ObjectId(userId),
     new Types.ObjectId(packageId),
     Number(amount),
-    finalPaymentId
+    finalPaymentId,
+    finalVoucherId // Pass voucherId if provided or extracted from payment
   );
 
   // Get updated wallets
@@ -629,7 +642,7 @@ export const createWithdrawal = asyncHandler(async (req, res) => {
 
 /**
  * Get user vouchers
- * GET /api/v1/user/vouchers
+ * GET /api/v1/user/vouchers?status=active
  */
 export const getUserVouchers = asyncHandler(async (req, res) => {
   const userId = (req as any).user?.id;
@@ -637,7 +650,16 @@ export const getUserVouchers = asyncHandler(async (req, res) => {
     throw new AppError("User not authenticated", 401);
   }
 
-  const vouchers = await Voucher.find({ user: userId })
+  // Get status filter from query params
+  const { status } = req.query;
+  
+  // Build query filter
+  const filter: any = { user: userId };
+  if (status) {
+    filter.status = status;
+  }
+
+  const vouchers = await Voucher.find(filter)
     .populate("fromWallet", "type")
     .populate("createdBy", "name userId")
     .sort({ createdAt: -1 })
@@ -651,6 +673,8 @@ export const getUserVouchers = asyncHandler(async (req, res) => {
         id: v._id,
         voucherId: v.voucherId,
         amount: parseFloat(v.amount.toString()),
+        investmentValue: v.investmentValue ? parseFloat(v.investmentValue.toString()) : parseFloat(v.amount.toString()) * 2, // Default 2x if not set
+        multiplier: v.multiplier || 2,
         originalAmount: v.originalAmount
           ? parseFloat(v.originalAmount.toString())
           : null,
@@ -672,8 +696,11 @@ export const getUserVouchers = asyncHandler(async (req, res) => {
 });
 
 /**
- * Create voucher (with mock payment)
+ * Create voucher (from wallet or via payment gateway)
  * POST /api/v1/user/vouchers/create
+ * 
+ * If fromWalletType is provided, voucher is created from wallet balance
+ * If fromWalletType is not provided, payment gateway is used
  */
 export const createVoucher = asyncHandler(async (req, res) => {
   const userId = (req as any).user?.id;
@@ -681,16 +708,22 @@ export const createVoucher = asyncHandler(async (req, res) => {
     throw new AppError("User not authenticated", 401);
   }
 
-  const { amount, fromWalletType } = req.body;
+  const { amount, fromWalletType, currency = "USD" } = req.body;
 
   if (!amount || amount <= 0) {
     throw new AppError("Invalid voucher amount", 400);
   }
 
-  // Get wallet if specified
-  let fromWallet = null;
+  const voucherMultiplier = 2; // 2x multiplier: $100 voucher = $200 investment value
+  const investmentValue = amount * voucherMultiplier;
+  const expiryDays = 120; // 120 days expiration
+
+  // Generate unique voucher ID
+  const voucherId = `VCH-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+
+  // If fromWalletType is provided, create voucher from wallet
   if (fromWalletType) {
-    fromWallet = await Wallet.findOne({ user: userId, type: fromWalletType });
+    const fromWallet = await Wallet.findOne({ user: userId, type: fromWalletType });
     if (!fromWallet) {
       throw new AppError(`Wallet of type ${fromWalletType} not found`, 404);
     }
@@ -699,25 +732,22 @@ export const createVoucher = asyncHandler(async (req, res) => {
     if (amount > currentBalance) {
       throw new AppError("Insufficient balance", 400);
     }
-  }
 
-  // Generate unique voucher ID
-  const voucherId = `VCH-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+    // Create voucher
+    const voucher = await Voucher.create({
+      voucherId,
+      user: userId,
+      fromWallet: fromWallet._id,
+      amount: Types.Decimal128.fromString(amount.toString()),
+      investmentValue: Types.Decimal128.fromString(investmentValue.toString()),
+      multiplier: voucherMultiplier,
+      originalAmount: Types.Decimal128.fromString(amount.toString()),
+      createdBy: userId,
+      status: "active",
+      expiry: new Date(Date.now() + expiryDays * 24 * 60 * 60 * 1000),
+    });
 
-  // Create voucher
-  const voucher = await Voucher.create({
-    voucherId,
-    user: userId,
-    fromWallet: fromWallet?._id,
-    amount: Types.Decimal128.fromString(amount.toString()),
-    originalAmount: Types.Decimal128.fromString(amount.toString()),
-    createdBy: userId,
-    status: "active",
-    expiry: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000), // 90 days
-  });
-
-  // If from wallet, deduct amount
-  if (fromWallet) {
+    // Deduct amount from wallet
     const newBalance = parseFloat(fromWallet.balance.toString()) - amount;
     fromWallet.balance = Types.Decimal128.fromString(newBalance.toString());
     await fromWallet.save();
@@ -737,22 +767,170 @@ export const createVoucher = asyncHandler(async (req, res) => {
       txRef: voucherId,
       meta: { type: "voucher_creation", voucherId },
     });
+
+    const response = res as any;
+    return response.status(201).json({
+      status: "success",
+      message: "Voucher created successfully",
+      data: {
+        voucher: {
+          id: voucher._id,
+          voucherId: voucher.voucherId,
+          amount: parseFloat(voucher.amount.toString()),
+          investmentValue: parseFloat(voucher.investmentValue.toString()),
+          multiplier: voucher.multiplier,
+          status: voucher.status,
+          expiry: voucher.expiry,
+          createdAt: (voucher as any).createdAt,
+        },
+      },
+    });
   }
 
-  const response = res as any;
-  response.status(201).json({
-    status: "success",
-    data: {
-      voucher: {
-        id: voucher._id,
-        voucherId: voucher.voucherId,
-        amount: parseFloat(voucher.amount.toString()),
-        status: voucher.status,
-        expiry: voucher.expiry,
-        createdAt: (voucher as any).createdAt,
+  // If no fromWalletType, check if payment gateway is enabled
+  // If gateway is disabled, create voucher directly without payment
+  const { Settings } = await import("../models/Settings");
+  const nowpaymentsSetting = await Settings.findOne({ key: "nowpayments_enabled" });
+  const isNOWPaymentsEnabled = nowpaymentsSetting === null || nowpaymentsSetting.value === true || nowpaymentsSetting.value === "true";
+
+  // If payment gateway is disabled, create voucher directly without payment
+  if (!isNOWPaymentsEnabled) {
+    // Create voucher immediately without payment processing
+    const voucher = await Voucher.create({
+      voucherId,
+      user: userId,
+      amount: Types.Decimal128.fromString(amount.toString()),
+      investmentValue: Types.Decimal128.fromString(investmentValue.toString()),
+      multiplier: voucherMultiplier,
+      originalAmount: Types.Decimal128.fromString(amount.toString()),
+      createdBy: userId,
+      status: "active",
+      expiry: new Date(Date.now() + expiryDays * 24 * 60 * 60 * 1000),
+    });
+
+    const response = res as any;
+    return response.status(201).json({
+      status: "success",
+      message: "Voucher created successfully (payment gateway disabled)",
+      data: {
+        voucher: {
+          id: voucher._id,
+          voucherId: voucher.voucherId,
+          amount: parseFloat(voucher.amount.toString()),
+          investmentValue: parseFloat(voucher.investmentValue.toString()),
+          multiplier: voucher.multiplier,
+          status: voucher.status,
+          expiry: voucher.expiry,
+          createdAt: (voucher as any).createdAt,
+        },
       },
-    },
-  });
+    });
+  }
+
+  // If payment gateway is enabled, proceed with payment processing
+  const { createNOWPaymentsInvoice } = await import("../lib/payments/nowpayments");
+
+  // Generate order ID for voucher purchase
+  const orderId = `VCH_${userId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+  // Get callback URLs
+  const baseUrl = process.env.CLIENT_URL || process.env.FRONTEND_URL || 'http://localhost:3000';
+  const callbackUrl = process.env.NOWPAYMENTS_CALLBACK_URL || `${process.env.API_URL || 'http://localhost:5001'}/api/v1/payment/callback`;
+  const successUrl = `${baseUrl}/vouchers/success?orderId=${orderId}`;
+  const cancelUrl = `${baseUrl}/vouchers/cancel?orderId=${orderId}`;
+
+  // Get user email
+  const user = await User.findById(userId).select("email").lean();
+  const customerEmail = user?.email || undefined;
+
+  // Create invoice with NOWPayments
+  try {
+    const invoiceResponse = await createNOWPaymentsInvoice({
+      price_amount: amount,
+      price_currency: currency.toUpperCase(),
+      order_id: orderId,
+      order_description: `Voucher Purchase - $${amount} (Investment Value: $${investmentValue})`,
+      ipn_callback_url: callbackUrl,
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+      customer_email: customerEmail,
+    });
+
+    // Construct invoice URL
+    let invoiceUrl = invoiceResponse.invoice_url;
+    if (!invoiceUrl && invoiceResponse.id) {
+      invoiceUrl = `https://nowpayments.io/invoice/?iid=${invoiceResponse.id}`;
+    } else if (!invoiceUrl && invoiceResponse.token) {
+      invoiceUrl = `https://nowpayments.io/invoice/?token=${invoiceResponse.token}`;
+    }
+
+    if (!invoiceUrl) {
+      throw new AppError("Invoice URL not provided by NOWPayments", 500);
+    }
+
+    // Create voucher with pending status (will be activated after payment)
+    const voucher = await Voucher.create({
+      voucherId,
+      user: userId,
+      amount: Types.Decimal128.fromString(amount.toString()),
+      investmentValue: Types.Decimal128.fromString(investmentValue.toString()),
+      multiplier: voucherMultiplier,
+      originalAmount: Types.Decimal128.fromString(amount.toString()),
+      createdBy: userId,
+      status: "active", // Will be activated after payment confirmation
+      expiry: new Date(Date.now() + expiryDays * 24 * 60 * 60 * 1000),
+      paymentId: invoiceResponse.id || invoiceResponse.token || orderId,
+      orderId,
+    });
+
+    // Store payment record (using Payment model if it exists, or create a simple record)
+    const { Payment } = await import("../models/Payment");
+    await Payment.create({
+      user: new Types.ObjectId(userId),
+      orderId,
+      paymentId: invoiceResponse.id || invoiceResponse.token || orderId,
+      amount: Types.Decimal128.fromString(amount.toString()),
+      currency,
+      status: "pending",
+      paymentUrl: invoiceUrl,
+      payCurrency: invoiceResponse.pay_currency || undefined,
+      meta: { type: "voucher_purchase", voucherId: voucher.voucherId },
+    });
+
+    const response = res as any;
+    response.status(200).json({
+      status: "success",
+      message: "Voucher payment invoice created successfully",
+      data: {
+        voucher: {
+          id: voucher._id,
+          voucherId: voucher.voucherId,
+          amount: parseFloat(voucher.amount.toString()),
+          investmentValue: parseFloat(voucher.investmentValue.toString()),
+          multiplier: voucher.multiplier,
+          status: voucher.status,
+          expiry: voucher.expiry,
+        },
+        payment: {
+          paymentId: invoiceResponse.id || invoiceResponse.token,
+          invoiceId: invoiceResponse.id,
+          invoiceToken: invoiceResponse.token,
+          paymentUrl: invoiceUrl,
+          priceAmount: invoiceResponse.price_amount,
+          priceCurrency: invoiceResponse.price_currency,
+          orderId: invoiceResponse.order_id || orderId,
+          status: "pending",
+        },
+        orderId,
+      },
+    });
+  } catch (error: any) {
+    console.error("NOWPayments voucher payment creation error:", error);
+    throw new AppError(
+      error.message || "Failed to create voucher payment request",
+      500
+    );
+  }
 });
 
 /**

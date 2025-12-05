@@ -438,7 +438,8 @@ export async function processInvestment(
   userId: Types.ObjectId,
   packageId: Types.ObjectId,
   amount: number,
-  paymentId?: string
+  paymentId?: string,
+  voucherId?: string
 ) {
   try {
     // Get user and package
@@ -450,6 +451,38 @@ export async function processInvestment(
     const pkg = await Package.findById(packageId);
     if (!pkg) {
       throw new AppError("Package not found", 404);
+    }
+
+    // Handle voucher if provided
+    let voucher = null;
+    if (voucherId) {
+      const { Voucher } = await import("../models/Voucher");
+      voucher = await Voucher.findOne({ 
+        voucherId, 
+        user: userId, 
+        status: "active" 
+      });
+
+      if (!voucher) {
+        throw new AppError("Voucher not found or already used", 404);
+      }
+
+      // Check if voucher is expired
+      if (voucher.expiry && new Date() > voucher.expiry) {
+        throw new AppError("Voucher has expired", 400);
+      }
+
+      // Verify voucher investment value covers at least part of the amount
+      const voucherInvestmentValue = parseFloat(voucher.investmentValue.toString());
+      if (voucherInvestmentValue < amount) {
+        // Voucher doesn't cover full amount, but that's okay - remaining will be paid via gateway
+        // This is handled in createPayment controller
+      }
+
+      // Mark voucher as used
+      voucher.status = "used";
+      voucher.usedAt = new Date();
+      await voucher.save();
     }
 
     // Validate amount
@@ -521,7 +554,7 @@ export async function processInvestment(
       type: "self",
       isBinaryUpdated: false,
       referralPaid: false,
-      voucherId: paymentId,
+      voucherId: voucherId || paymentId, // Store voucherId if provided, otherwise paymentId
       startDate,
       endDate,
       durationDays,

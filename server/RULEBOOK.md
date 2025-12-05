@@ -15,13 +15,14 @@
 5. [Referral Bonus System](#referral-bonus-system)
 6. [Binary Bonus System](#binary-bonus-system)
 7. [ROI (Return on Investment) System](#roi-return-on-investment-system)
-8. [Wallet Management](#wallet-management)
-9. [Withdrawal System](#withdrawal-system)
-10. [Daily Cron Job Operations](#daily-cron-job-operations)
-11. [Business Volume & Carry Forward](#business-volume--carry-forward)
-12. [Edge Cases & Validations](#edge-cases--validations)
-13. [Order of Operations](#order-of-operations)
-14. [Sample Calculations](#sample-calculations)
+8. [Voucher System](#voucher-system)
+9. [Wallet Management](#wallet-management)
+10. [Withdrawal System](#withdrawal-system)
+11. [Daily Cron Job Operations](#daily-cron-job-operations)
+12. [Business Volume & Carry Forward](#business-volume--carry-forward)
+13. [Edge Cases & Validations](#edge-cases--validations)
+14. [Order of Operations](#order-of-operations)
+15. [Sample Calculations](#sample-calculations)
 
 ---
 
@@ -39,6 +40,9 @@
 - **Business Volume (BV)**: Investment amounts that contribute to binary bonus calculations
 - **Carry Forward**: Unmatched business volume that carries over to the next day
 - **Power Capacity/Capping Limit**: Maximum daily binary bonus amount per user
+- **Voucher**: Prepaid credit that can be used to activate investments (2x multiplier)
+- **Voucher Investment Value**: The investment value of a voucher (purchase amount × multiplier)
+- **Voucher Multiplier**: Factor by which voucher amount is multiplied (default: 2x)
 
 ### Wallet Types
 
@@ -176,6 +180,251 @@ Each package contains:
 - **Active**: Investment is earning ROI and contributing to binary bonuses
 - **Expired**: Investment has reached `endDate` or `daysRemaining = 0`
 - **Deactivated**: Investment is automatically deactivated when expired (via daily cron)
+
+---
+
+## Voucher System
+
+### Voucher Overview
+
+Vouchers are prepaid credits that users can purchase and use to activate investment packages. Vouchers provide a 2x multiplier on their purchase value, meaning a $100 voucher can unlock $200 worth of investments.
+
+### Voucher Creation
+
+#### Purchase Methods
+
+1. **From Wallet Balance**
+   - User can create a voucher by deducting funds from any wallet type
+   - Voucher is created immediately with active status
+   - Transaction is recorded in wallet history
+
+2. **Via Payment Gateway**
+   - User can purchase vouchers using NOWPayments gateway
+   - If gateway is disabled, voucher is created directly without payment
+   - Voucher is activated after payment confirmation
+
+#### Voucher Properties
+
+- **Purchase Amount**: The amount paid for the voucher (e.g., $100)
+- **Investment Value**: The value that can be used for investments (purchase amount × 2)
+- **Multiplier**: Default 2x (configurable per voucher)
+- **Expiration**: 120 days from creation date
+- **Status**: `active`, `used`, `expired`, or `revoked`
+
+#### Voucher Creation Rules
+
+```
+Voucher Investment Value = Purchase Amount × Multiplier (default: 2)
+Expiration Date = Creation Date + 120 days
+Status = "active" (initially)
+```
+
+**Example:**
+- User purchases $100 voucher
+- Investment Value = $100 × 2 = $200
+- Expiration = 120 days from purchase
+- Can be used for investments up to $200
+
+### Voucher Usage in Investments
+
+#### Using Vouchers During Investment
+
+When creating an investment, users can optionally select a voucher to apply:
+
+1. **Voucher Selection**
+   - Only active, non-expired vouchers are available
+   - User selects voucher from dropdown
+   - System calculates remaining amount to pay
+
+2. **Coverage Calculation**
+
+```
+Remaining Amount = Investment Amount - Voucher Investment Value
+```
+
+**Scenarios:**
+
+- **Full Coverage**: If `Voucher Investment Value >= Investment Amount`
+  - Investment activates immediately
+  - No payment required
+  - Voucher is marked as used
+
+- **Partial Coverage**: If `Voucher Investment Value < Investment Amount`
+  - Voucher covers partial amount
+  - User pays remaining amount via payment gateway
+  - Investment activates after payment confirmation
+  - Voucher is marked as used
+
+- **No Coverage**: If no voucher selected
+  - Normal investment flow
+  - Full amount paid via payment gateway
+
+#### Voucher Usage Examples
+
+**Example 1: Full Coverage**
+- Voucher: $100 (Investment Value: $200)
+- Investment: $100
+- Result: Voucher covers full amount → Investment activates immediately
+
+**Example 2: Partial Coverage**
+- Voucher: $100 (Investment Value: $200)
+- Investment: $300
+- Result: Voucher covers $200 → User pays remaining $100 via gateway
+
+**Example 3: Multiple Investments**
+- Voucher: $100 (Investment Value: $200)
+- Investment 1: $150 → Voucher covers $150, $50 remaining → User pays $50
+- Investment 2: $50 → Voucher covers remaining $50 → Investment activates
+
+**Note**: Once a voucher is used, it cannot be reused. Each voucher can only be used once.
+
+### Voucher Validation Rules
+
+1. **Status Check**
+   - Voucher must have status `"active"`
+   - Used, expired, or revoked vouchers cannot be used
+
+2. **Expiration Check**
+   - Voucher must not be expired
+   - Expiration date is checked before usage
+
+3. **Ownership Check**
+   - Voucher must belong to the user making the investment
+   - Users cannot use vouchers owned by others
+
+4. **Investment Value Check**
+   - Voucher investment value is calculated as: `amount × multiplier`
+   - If `investmentValue` field exists, it takes precedence
+   - Default multiplier is 2x if not specified
+
+### Voucher Lifecycle
+
+1. **Creation**
+   - Voucher is created with `status: "active"`
+   - `investmentValue` is set to `amount × multiplier`
+   - `expiry` is set to 120 days from creation
+
+2. **Usage**
+   - When voucher is used in investment:
+     - `status` changes to `"used"`
+     - `usedAt` timestamp is recorded
+     - Voucher cannot be used again
+
+3. **Expiration**
+   - Vouchers expire after 120 days
+   - Expired vouchers cannot be used
+   - Status can be manually set to `"expired"` by system
+
+### Voucher API Endpoints
+
+#### User Endpoints
+
+- `POST /api/v1/user/vouchers/create` - Create voucher (wallet or payment gateway)
+- `GET /api/v1/user/vouchers?status=active` - Get user vouchers (filtered by status)
+
+#### Request/Response Examples
+
+**Create Voucher (from wallet):**
+```json
+POST /api/v1/user/vouchers/create
+{
+  "amount": 100,
+  "fromWalletType": "ROI"
+}
+
+Response:
+{
+  "status": "success",
+  "data": {
+    "voucher": {
+      "voucherId": "VCH-1234567890-ABC123",
+      "amount": 100,
+      "investmentValue": 200,
+      "multiplier": 2,
+      "status": "active",
+      "expiry": "2024-04-15T00:00:00.000Z"
+    }
+  }
+}
+```
+
+**Create Investment with Voucher:**
+```json
+POST /api/v1/payment/create
+{
+  "packageId": "507f1f77bcf86cd799439011",
+  "amount": 300,
+  "voucherId": "VCH-1234567890-ABC123"
+}
+
+Response:
+{
+  "status": "success",
+  "data": {
+    "payment": { ... },
+    "voucher": {
+      "voucherId": "VCH-1234567890-ABC123",
+      "amount": 100,
+      "investmentValue": 200
+    },
+    "remainingAmount": 100
+  }
+}
+```
+
+### Voucher System Integration
+
+#### Payment Gateway Disabled
+
+When NOWPayments gateway is disabled:
+- Vouchers can still be created (directly, without payment)
+- Investments can be created with vouchers (directly, without payment)
+- System processes investments immediately when voucher covers full amount
+
+#### Investment Flow with Vouchers
+
+1. User selects package and enters investment amount
+2. User optionally selects a voucher
+3. System calculates:
+   - Voucher investment value
+   - Remaining amount to pay
+4. If voucher covers full amount:
+   - Investment activates immediately
+   - Voucher marked as used
+5. If voucher covers partial amount:
+   - Payment gateway invoice created for remaining amount
+   - Investment activates after payment confirmation
+   - Voucher marked as used
+
+### Voucher Data Model
+
+```typescript
+interface Voucher {
+  voucherId: string;           // Unique voucher identifier (format: VCH-{timestamp}-{random})
+  user: ObjectId;              // Owner of the voucher
+  fromWallet?: ObjectId;       // Wallet used to purchase (if from wallet)
+  amount: Decimal128;          // Purchase amount
+  investmentValue: Decimal128; // Investment value (amount × multiplier)
+  multiplier: number;          // Multiplier (default: 2)
+  originalAmount?: Decimal128; // Original amount (for tracking)
+  createdBy: ObjectId;         // User who created the voucher
+  createdOn: Date;             // Creation timestamp
+  usedAt?: Date;               // Usage timestamp (when voucher was used)
+  expiry: Date;                // Expiration date (120 days from creation)
+  status: "active" | "used" | "expired" | "revoked";
+  paymentId?: string;          // Payment ID (if purchased via gateway)
+  orderId?: string;            // Order ID (if purchased via gateway)
+}
+```
+
+### Important Notes
+
+1. **Voucher Multiplier**: Default is 2x, meaning $100 voucher = $200 investment value
+2. **Expiration**: Vouchers expire after 120 days from creation
+3. **One-Time Use**: Each voucher can only be used once
+4. **Partial Usage**: Vouchers can cover partial investments, with remaining paid via gateway
+5. **Full Coverage**: If voucher investment value >= investment amount, no payment needed
+6. **Gateway Disabled**: Vouchers and investments work even when payment gateway is disabled
 
 ---
 
@@ -977,6 +1226,7 @@ This rule book defines all business rules, calculations, and workflows for the C
 3. ROI: Daily, split into cashable and renewable, principal constant
 4. Business volume: Cumulative, immediate addition, daily matching
 5. Carry forward: Unmatched volume, daily recalculation
+6. Vouchers: 2x multiplier, 120-day expiration, one-time use, can cover full or partial investments
 
 For technical implementation details, refer to the source code and API documentation.
 

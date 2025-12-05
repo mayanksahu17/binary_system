@@ -36,12 +36,54 @@ function InvestContent() {
   const [investAmount, setInvestAmount] = useState('');
   const [creatingPayment, setCreatingPayment] = useState(false);
   const [paymentUrl, setPaymentUrl] = useState('');
+  const [availableVouchers, setAvailableVouchers] = useState<any[]>([]);
+  const [selectedVoucherId, setSelectedVoucherId] = useState<string | null>(null);
+  const [loadingVouchers, setLoadingVouchers] = useState(false);
 
   useEffect(() => {
     if (packageId) {
       fetchPackage();
+      fetchAvailableVouchers();
     }
   }, [packageId]);
+
+  const fetchAvailableVouchers = async () => {
+    try {
+      setLoadingVouchers(true);
+      const response = await api.getUserVouchers({ status: 'active' });
+      console.log('Vouchers response:', response);
+      
+      if (response.data?.vouchers) {
+        // Filter vouchers that are not expired
+        const now = new Date();
+        const validVouchers = response.data.vouchers.filter((v: any) => {
+          if (v.status !== 'active') {
+            console.log('Voucher filtered out - status:', v.status, v.voucherId);
+            return false;
+          }
+          if (v.expiry) {
+            const expiryDate = new Date(v.expiry);
+            if (expiryDate <= now) {
+              console.log('Voucher filtered out - expired:', v.voucherId, expiryDate);
+              return false;
+            }
+          }
+          return true;
+        });
+        console.log('Valid vouchers:', validVouchers);
+        setAvailableVouchers(validVouchers);
+      } else {
+        console.log('No vouchers in response');
+        setAvailableVouchers([]);
+      }
+    } catch (err: any) {
+      console.error('Failed to fetch vouchers:', err);
+      // Don't show error, just continue without vouchers
+      setAvailableVouchers([]);
+    } finally {
+      setLoadingVouchers(false);
+    }
+  };
 
   const fetchPackage = async () => {
     try {
@@ -121,7 +163,18 @@ function InvestContent() {
         packageId: pkg.id,
         amount,
         currency: 'USD',
+        voucherId: selectedVoucherId || undefined,
       });
+
+      // Check if investment was created directly (payment gateway disabled)
+      if (response.data?.investment) {
+        // Investment created directly without payment
+        setError('');
+        // Show success message and redirect
+        alert('Investment created successfully!');
+        router.push('/investments');
+        return;
+      }
 
       if (response.data?.payment?.paymentUrl) {
         // Redirect to NOWPayments payment page
@@ -242,6 +295,60 @@ function InvestContent() {
               {/* Investment Form */}
               <div className="border-t border-gray-200 pt-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Investment Amount</h3>
+                
+                {/* Voucher Selection */}
+                {availableVouchers.length > 0 && (
+                  <div className="mb-4 p-4 bg-green-50 rounded-lg border border-green-200">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Use Voucher (Optional)
+                    </label>
+                    <select
+                      value={selectedVoucherId || ''}
+                      onChange={(e) => setSelectedVoucherId(e.target.value || null)}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-md text-black bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 mb-2"
+                    >
+                      <option value="">No voucher</option>
+                      {availableVouchers.map((voucher: any) => (
+                        <option key={voucher.voucherId} value={voucher.voucherId}>
+                          ${voucher.amount.toLocaleString()} voucher (Investment Value: ${voucher.investmentValue?.toLocaleString() || (voucher.amount * 2).toLocaleString()})
+                          {voucher.expiry && ` - Expires: ${new Date(voucher.expiry).toLocaleDateString()}`}
+                        </option>
+                      ))}
+                    </select>
+                    {selectedVoucherId && (() => {
+                      const selectedVoucher = availableVouchers.find((v: any) => v.voucherId === selectedVoucherId);
+                      if (selectedVoucher) {
+                        const voucherValue = selectedVoucher.investmentValue || selectedVoucher.amount * 2;
+                        const investmentAmount = parseFloat(investAmount) || 0;
+                        const remainingAmount = Math.max(0, investmentAmount - voucherValue);
+                        return (
+                          <div className="text-sm text-gray-600 space-y-1">
+                            <div className="flex justify-between">
+                              <span>Voucher Value:</span>
+                              <span className="font-semibold text-green-600">${voucherValue.toLocaleString()}</span>
+                            </div>
+                            {remainingAmount > 0 ? (
+                              <div className="flex justify-between">
+                                <span>Remaining to Pay:</span>
+                                <span className="font-semibold text-orange-600">${remainingAmount.toLocaleString()}</span>
+                              </div>
+                            ) : (
+                              <div className="text-green-600 font-semibold">
+                                ✓ Voucher covers full amount!
+                              </div>
+                            )}
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
+                  </div>
+                ) : (
+                  <div className="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <p className="text-sm text-gray-600">No active vouchers available. <a href="/vouchers" className="text-indigo-600 hover:underline">Create one?</a></p>
+                  </div>
+                )}
+
                 <div className="mb-4">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Amount (USD)
@@ -261,27 +368,46 @@ function InvestContent() {
                   </p>
                 </div>
 
-                {investAmount && !isNaN(parseFloat(investAmount)) && (
-                  <div className="mb-6 p-4 bg-indigo-50 rounded-lg border border-indigo-200">
-                    <h4 className="font-semibold text-gray-900 mb-2">Investment Summary</h4>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Investment Amount:</span>
-                        <span className="font-semibold text-gray-900">${parseFloat(investAmount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Total Return ({totalOutputPct}%):</span>
-                        <span className="font-semibold text-green-600">
-                          ${(parseFloat(investAmount) * (totalOutputPct / 100)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Duration:</span>
-                        <span className="font-semibold text-gray-900">{pkg.duration} days</span>
+                {investAmount && !isNaN(parseFloat(investAmount)) && (() => {
+                  const selectedVoucher = selectedVoucherId ? availableVouchers.find((v: any) => v.voucherId === selectedVoucherId) : null;
+                  const voucherValue = selectedVoucher ? (selectedVoucher.investmentValue || selectedVoucher.amount * 2) : 0;
+                  const investmentAmount = parseFloat(investAmount);
+                  const remainingAmount = Math.max(0, investmentAmount - voucherValue);
+                  
+                  return (
+                    <div className="mb-6 p-4 bg-indigo-50 rounded-lg border border-indigo-200">
+                      <h4 className="font-semibold text-gray-900 mb-2">Investment Summary</h4>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Investment Amount:</span>
+                          <span className="font-semibold text-gray-900">${investmentAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        </div>
+                        {selectedVoucher && (
+                          <>
+                            <div className="flex justify-between border-t border-indigo-200 pt-2">
+                              <span className="text-gray-600">Voucher Applied:</span>
+                              <span className="font-semibold text-green-600">-${voucherValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Amount to Pay:</span>
+                              <span className="font-semibold text-orange-600">${remainingAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                            </div>
+                          </>
+                        )}
+                        <div className="flex justify-between border-t border-indigo-200 pt-2">
+                          <span className="text-gray-600">Total Return ({totalOutputPct}%):</span>
+                          <span className="font-semibold text-green-600">
+                            ${(investmentAmount * (totalOutputPct / 100)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Duration:</span>
+                          <span className="font-semibold text-gray-900">{pkg.duration} days</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
 
                 <button
                   onClick={handleCreatePayment}

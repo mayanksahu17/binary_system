@@ -56,11 +56,15 @@ function SuccessContent() {
         }
 
         // Call investment API with paymentId from NOWPayments
+        // Extract voucherId from payment meta if available
+        const voucherId = payment.voucher?.voucherId || null;
+        
         const investResponse = await api.createInvestment({
           packageId: (payment.packageId as any)._id || payment.packageId,
           amount: payment.amount,
           currency: payment.currency || 'USD',
           paymentId: payment.paymentId, // Pass NOWPayments payment ID
+          voucherId: voucherId || undefined, // Pass voucherId if available
         });
 
         if (investResponse.data) {

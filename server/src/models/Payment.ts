@@ -15,6 +15,7 @@ export interface IPayment extends Document {
   actuallyPaid?: mongoose.Types.Decimal128;
   investmentId?: mongoose.Types.ObjectId; // Reference to investment once completed
   callbackData?: any; // Store callback data for debugging
+  meta?: any; // Additional metadata (e.g., voucher info)
   createdAt: Date;
   updatedAt: Date;
 }
@@ -76,6 +77,9 @@ const PaymentSchema = new Schema<IPayment>(
       ref: "Investment",
     },
     callbackData: {
+      type: Schema.Types.Mixed,
+    },
+    meta: {
       type: Schema.Types.Mixed,
     },
   },

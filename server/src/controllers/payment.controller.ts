@@ -27,7 +27,7 @@ export const createPayment = asyncHandler(async (req, res) => {
     throw new AppError("User not authenticated", 401);
   }
 
-  const { packageId, amount, currency = "USD" } = req.body;
+  const { packageId, amount, currency = "USD", voucherId } = req.body;
 
   if (!packageId || !amount) {
     throw new AppError("Package ID and amount are required", 400);
@@ -65,6 +65,88 @@ export const createPayment = asyncHandler(async (req, res) => {
     throw new AppError("Package is not active", 400);
   }
 
+  // Handle voucher if provided
+  let voucher = null;
+  let voucherInvestmentValue = 0;
+  let remainingAmount = investmentAmount;
+
+  if (voucherId) {
+    const { Voucher } = await import("../models/Voucher");
+    voucher = await Voucher.findOne({ 
+      voucherId, 
+      user: userId, 
+      status: "active" 
+    });
+
+    if (!voucher) {
+      throw new AppError("Voucher not found or already used", 404);
+    }
+
+    // Check if voucher is expired
+    if (voucher.expiry && new Date() > voucher.expiry) {
+      throw new AppError("Voucher has expired", 400);
+    }
+
+    // Get voucher investment value - calculate if not set
+    if (voucher.investmentValue) {
+      voucherInvestmentValue = parseFloat(voucher.investmentValue.toString());
+    } else {
+      // Calculate from amount * multiplier if investmentValue is not set
+      const voucherAmount = parseFloat(voucher.amount.toString());
+      const multiplier = voucher.multiplier || 2;
+      voucherInvestmentValue = voucherAmount * multiplier;
+    }
+    
+    // Ensure we have a valid investment value
+    if (!voucherInvestmentValue || voucherInvestmentValue === 0 || isNaN(voucherInvestmentValue)) {
+      const voucherAmount = parseFloat(voucher.amount.toString());
+      const multiplier = voucher.multiplier || 2;
+      voucherInvestmentValue = voucherAmount * multiplier;
+    }
+    
+    console.log(`[Voucher] Voucher ID: ${voucher.voucherId}, Amount: ${voucher.amount}, Investment Value: ${voucherInvestmentValue}, Investment Amount: ${investmentAmount}`);
+    
+    remainingAmount = Math.max(0, investmentAmount - voucherInvestmentValue);
+
+    // If voucher covers full amount or more, no payment needed
+    // Voucher investment value can be greater than investment amount - that's fine
+    // Example: $100 voucher (investment value $200) can cover $100 investment
+    console.log(`[Voucher] Remaining amount: ${remainingAmount}, Voucher covers: ${voucherInvestmentValue >= investmentAmount}`);
+    if (remainingAmount === 0 || voucherInvestmentValue >= investmentAmount) {
+      // Process investment directly with voucher
+      const { processInvestment } = await import("../services/investment.service");
+      const investment = await processInvestment(
+        userId,
+        packageId,
+        investmentAmount,
+        voucherId
+      );
+
+      // Mark voucher as used
+      voucher.status = "used";
+      voucher.usedAt = new Date();
+      await voucher.save();
+
+      const response = res as any;
+      return response.status(200).json({
+        status: "success",
+        message: "Investment activated successfully with voucher",
+        data: {
+          investment: {
+            id: investment._id,
+            amount: investmentAmount,
+            voucherUsed: {
+              voucherId: voucher.voucherId,
+              amount: parseFloat(voucher.amount.toString()),
+              investmentValue: voucherInvestmentValue,
+            },
+            remainingAmount: 0,
+          },
+        },
+      });
+    }
+  }
+
   // Generate order ID
   const orderId = `INV_${userId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
@@ -78,8 +160,45 @@ export const createPayment = asyncHandler(async (req, res) => {
   const nowpaymentsSetting = await Settings.findOne({ key: "nowpayments_enabled" });
   const isNOWPaymentsEnabled = nowpaymentsSetting === null || nowpaymentsSetting.value === true || nowpaymentsSetting.value === "true";
 
+  // If payment gateway is disabled, process investment directly without payment
   if (!isNOWPaymentsEnabled) {
-    throw new AppError("NOWPayments gateway is currently disabled. Please contact support or wait for it to be enabled.", 503);
+    // Process investment directly (payment gateway disabled)
+    const { processInvestment } = await import("../services/investment.service");
+    
+    // Handle voucher if provided
+    if (voucherId && voucher) {
+      // Mark voucher as used
+      voucher.status = "used";
+      voucher.usedAt = new Date();
+      await voucher.save();
+    }
+
+    const investment = await processInvestment(
+      userId,
+      packageId,
+      investmentAmount,
+      voucherId || `DIRECT_${Date.now()}`, // Use voucherId or generate a direct payment ID
+      voucherId || undefined
+    );
+
+    const response = res as any;
+    return response.status(200).json({
+      status: "success",
+      message: "Investment activated successfully (payment gateway disabled)",
+      data: {
+        investment: {
+          id: investment._id,
+          amount: investmentAmount,
+          voucherUsed: voucher ? {
+            voucherId: voucher.voucherId,
+            amount: parseFloat(voucher.amount.toString()),
+            investmentValue: voucherInvestmentValue,
+          } : null,
+          remainingAmount: remainingAmount,
+          paymentGateway: "disabled",
+        },
+      },
+    });
   }
 
   // Get user email for invoice
@@ -91,11 +210,17 @@ export const createPayment = asyncHandler(async (req, res) => {
   try {
     console.log('Creating NOWPayments invoice for order:', orderId);
 
+    // Create invoice for remaining amount (if voucher is used)
+    const paymentAmount = remainingAmount > 0 ? remainingAmount : investmentAmount;
+    const orderDescription = voucher
+      ? `Investment in ${pkg.packageName} - $${investmentAmount} (Voucher: $${voucherInvestmentValue}, Remaining: $${remainingAmount})`
+      : `Investment in ${pkg.packageName} - $${investmentAmount}`;
+
     const invoiceResponse = await createNOWPaymentsInvoice({
-      price_amount: investmentAmount,
+      price_amount: paymentAmount,
       price_currency: currency.toUpperCase(),
       order_id: orderId,
-      order_description: `Investment in ${pkg.packageName} - $${investmentAmount}`,
+      order_description: orderDescription,
       ipn_callback_url: callbackUrl,
       success_url: successUrl,
       cancel_url: cancelUrl,
@@ -124,11 +249,17 @@ export const createPayment = asyncHandler(async (req, res) => {
       package: new Types.ObjectId(packageId),
       orderId,
       paymentId: invoiceResponse.id || invoiceResponse.token || orderId, // Use invoice ID temporarily
-      amount: Types.Decimal128.fromString(investmentAmount.toString()),
+      amount: Types.Decimal128.fromString(investmentAmount.toString()), // Total investment amount
       currency,
       status: "pending",
       paymentUrl: invoiceUrl,
       payCurrency: invoiceResponse.pay_currency || undefined,
+      meta: voucher ? {
+        voucherId: voucher.voucherId,
+        voucherAmount: parseFloat(voucher.amount.toString()),
+        voucherInvestmentValue: voucherInvestmentValue,
+        remainingAmount: remainingAmount,
+      } : undefined,
     });
 
     const response = res as any;
@@ -146,6 +277,12 @@ export const createPayment = asyncHandler(async (req, res) => {
           orderId: invoiceResponse.order_id || orderId,
           status: "pending",
         },
+        voucher: voucher ? {
+          voucherId: voucher.voucherId,
+          amount: parseFloat(voucher.amount.toString()),
+          investmentValue: voucherInvestmentValue,
+        } : null,
+        remainingAmount: remainingAmount,
         orderId,
       },
     });
@@ -173,6 +310,76 @@ export const handlePaymentCallback = asyncHandler(async (req, res) => {
 
   // Extract order ID and user info
   const orderId = callback.order_id;
+  
+  // Handle voucher purchase callbacks (VCH_ prefix)
+  if (orderId && orderId.startsWith("VCH_")) {
+    const { Voucher } = await import("../models/Voucher");
+    const orderParts = orderId.split("_");
+    if (orderParts.length < 2) {
+      throw new AppError("Invalid voucher order ID format", 400);
+    }
+
+    const userId = orderParts[1];
+    if (!Types.ObjectId.isValid(userId)) {
+      throw new AppError("Invalid user ID in voucher order", 400);
+    }
+
+    // Find voucher by orderId
+    const voucher = await Voucher.findOne({ orderId, user: userId });
+    if (!voucher) {
+      console.error(`Voucher not found for order ${orderId}`);
+      const response = res as any;
+      return response.status(200).json({
+        status: "error",
+        message: "Voucher not found",
+      });
+    }
+
+    // Update payment status
+    const paymentStatus = await getNOWPaymentsPaymentStatus(callback.payment_id);
+    if (isPaymentCompleted(paymentStatus.payment_status)) {
+      // Voucher payment completed - voucher is already active (created when invoice was created)
+      // Just confirm the payment
+      const { Payment } = await import("../models/Payment");
+      const payment = await Payment.findOne({ orderId });
+      if (payment) {
+        payment.status = "completed";
+        payment.callbackData = callback;
+        payment.actuallyPaid = callback.actually_paid
+          ? Types.Decimal128.fromString(callback.actually_paid.toString())
+          : undefined;
+        await payment.save();
+      }
+      
+      const response = res as any;
+      return response.status(200).json({
+        status: "success",
+        message: "Voucher payment confirmed",
+      });
+    } else if (isPaymentFailed(paymentStatus.payment_status)) {
+      // Payment failed - mark voucher as revoked or keep it pending
+      const { Payment } = await import("../models/Payment");
+      const payment = await Payment.findOne({ orderId });
+      if (payment) {
+        payment.status = "failed";
+        await payment.save();
+      }
+      
+      const response = res as any;
+      return response.status(200).json({
+        status: "success",
+        message: "Voucher payment failed - callback processed",
+      });
+    }
+
+    const response = res as any;
+    return response.status(200).json({
+      status: "success",
+      message: "Voucher payment callback processed",
+    });
+  }
+
+  // Handle investment payment callbacks (INV_ prefix)
   if (!orderId || !orderId.startsWith("INV_")) {
     console.error("Invalid order ID in callback:", orderId);
     throw new AppError("Invalid order ID", 400);
@@ -322,6 +529,24 @@ export const getPaymentByOrderId = asyncHandler(async (req, res) => {
     throw new AppError("Payment not found", 404);
   }
 
+  // Get voucher info if voucher was used
+  let voucherInfo = null;
+  if (payment.meta && (payment.meta as any).voucherId) {
+    const { Voucher } = await import("../models/Voucher");
+    const voucher = await Voucher.findOne({ 
+      voucherId: (payment.meta as any).voucherId,
+      user: userId 
+    });
+    if (voucher) {
+      voucherInfo = {
+        voucherId: voucher.voucherId,
+        amount: parseFloat(voucher.amount.toString()),
+        investmentValue: parseFloat(voucher.investmentValue.toString()),
+        multiplier: voucher.multiplier || 2,
+      };
+    }
+  }
+
   const response = res as any;
   response.status(200).json({
     status: "success",
@@ -335,6 +560,8 @@ export const getPaymentByOrderId = asyncHandler(async (req, res) => {
         currency: payment.currency,
         status: payment.status,
         investmentId: payment.investmentId,
+        voucher: voucherInfo,
+        remainingAmount: voucherInfo ? (payment.meta as any)?.remainingAmount : null,
       },
     },
   });

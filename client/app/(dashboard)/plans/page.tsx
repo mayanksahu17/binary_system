@@ -34,6 +34,9 @@ export default function PlansPage() {
   const [selectedPackage, setSelectedPackage] = useState<Package | null>(null);
   const [investAmount, setInvestAmount] = useState('');
   const [creatingPayment, setCreatingPayment] = useState(false);
+  const [availableVouchers, setAvailableVouchers] = useState<any[]>([]);
+  const [selectedVoucherId, setSelectedVoucherId] = useState<string | null>(null);
+  const [loadingVouchers, setLoadingVouchers] = useState(false);
 
   useEffect(() => {
     fetchPackages();
@@ -53,11 +56,53 @@ export default function PlansPage() {
     }
   };
 
-  const handleInvestNow = (pkg: Package) => {
+  const handleInvestNow = async (pkg: Package) => {
     setSelectedPackage(pkg);
     setInvestAmount(pkg.minAmount.toString());
+    setSelectedVoucherId(null);
     setShowInvestModal(true);
     setError('');
+    
+    // Fetch available vouchers
+    await fetchAvailableVouchers();
+  };
+
+  const fetchAvailableVouchers = async () => {
+    try {
+      setLoadingVouchers(true);
+      const response = await api.getUserVouchers({ status: 'active' });
+      console.log('Vouchers response:', response);
+      
+      if (response.data?.vouchers) {
+        // Filter vouchers that are not expired
+        const now = new Date();
+        const validVouchers = response.data.vouchers.filter((v: any) => {
+          if (v.status !== 'active') {
+            console.log('Voucher filtered out - status:', v.status, v.voucherId);
+            return false;
+          }
+          if (v.expiry) {
+            const expiryDate = new Date(v.expiry);
+            if (expiryDate <= now) {
+              console.log('Voucher filtered out - expired:', v.voucherId, expiryDate);
+              return false;
+            }
+          }
+          return true;
+        });
+        console.log('Valid vouchers:', validVouchers);
+        setAvailableVouchers(validVouchers);
+      } else {
+        console.log('No vouchers in response');
+        setAvailableVouchers([]);
+      }
+    } catch (err: any) {
+      console.error('Failed to fetch vouchers:', err);
+      // Don't show error, just continue without vouchers
+      setAvailableVouchers([]);
+    } finally {
+      setLoadingVouchers(false);
+    }
   };
 
   const handleCreatePayment = async () => {
@@ -90,7 +135,23 @@ export default function PlansPage() {
         packageId: selectedPackage.id,
         amount,
         currency: 'USD',
+        voucherId: selectedVoucherId || undefined,
       });
+
+      // Check if investment was created directly (payment gateway disabled)
+      if (response.data?.investment) {
+        // Investment created directly without payment
+        setError('');
+        setShowInvestModal(false);
+        setSelectedPackage(null);
+        setInvestAmount('');
+        setSelectedVoucherId(null);
+        // Show success message or redirect
+        alert('Investment created successfully!');
+        // Optionally reload the page or redirect to investments page
+        window.location.href = '/investments';
+        return;
+      }
 
       if (response.data?.payment?.paymentUrl) {
         // Redirect to NOWPayments payment page
@@ -271,6 +332,63 @@ export default function PlansPage() {
                   </div>
                 </div>
 
+                {/* Voucher Selection */}
+                {loadingVouchers ? (
+                  <div className="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <p className="text-sm text-gray-600">Loading vouchers...</p>
+                  </div>
+                ) : availableVouchers.length > 0 ? (
+                  <div className="mb-4 p-4 bg-green-50 rounded-lg border border-green-200">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Use Voucher (Optional)
+                    </label>
+                    <select
+                      value={selectedVoucherId || ''}
+                      onChange={(e) => setSelectedVoucherId(e.target.value || null)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-black bg-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 mb-2"
+                    >
+                      <option value="">No voucher</option>
+                      {availableVouchers.map((voucher: any) => (
+                        <option key={voucher.voucherId} value={voucher.voucherId}>
+                          ${voucher.amount.toLocaleString()} voucher (Investment Value: ${voucher.investmentValue?.toLocaleString() || (voucher.amount * 2).toLocaleString()})
+                          {voucher.expiry && ` - Expires: ${new Date(voucher.expiry).toLocaleDateString()}`}
+                        </option>
+                      ))}
+                    </select>
+                    {selectedVoucherId && (() => {
+                      const selectedVoucher = availableVouchers.find((v: any) => v.voucherId === selectedVoucherId);
+                      if (selectedVoucher) {
+                        const voucherValue = selectedVoucher.investmentValue || selectedVoucher.amount * 2;
+                        const investmentAmount = parseFloat(investAmount) || 0;
+                        const remainingAmount = Math.max(0, investmentAmount - voucherValue);
+                        return (
+                          <div className="text-sm text-gray-600 space-y-1">
+                            <div className="flex justify-between">
+                              <span>Voucher Value:</span>
+                              <span className="font-semibold text-green-600">${voucherValue.toLocaleString()}</span>
+                            </div>
+                            {remainingAmount > 0 ? (
+                              <div className="flex justify-between">
+                                <span>Remaining to Pay:</span>
+                                <span className="font-semibold text-orange-600">${remainingAmount.toLocaleString()}</span>
+                              </div>
+                            ) : (
+                              <div className="text-green-600 font-semibold">
+                                ✓ Voucher covers full amount!
+                              </div>
+                            )}
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
+                  </div>
+                ) : (
+                  <div className="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <p className="text-sm text-gray-600">No active vouchers available. <a href="/vouchers" className="text-indigo-600 hover:underline">Create one?</a></p>
+                  </div>
+                )}
+
                 <div className="mb-4">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Investment Amount (USD)
@@ -299,6 +417,7 @@ export default function PlansPage() {
                       setShowInvestModal(false);
                       setSelectedPackage(null);
                       setInvestAmount('');
+                      setSelectedVoucherId(null);
                       setError('');
                     }}
                     className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300"
