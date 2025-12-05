@@ -9,6 +9,8 @@ interface Voucher {
   id: string;
   voucherId: string;
   amount: number;
+  investmentValue?: number;
+  multiplier?: number;
   originalAmount: number | null;
   fromWalletType: string | null;
   createdBy: { name: string; userId: string } | null;
@@ -103,6 +105,23 @@ export default function VouchersPage() {
     return new Date(expiry) < new Date();
   };
 
+  const getDaysRemaining = (expiry: string | null) => {
+    if (!expiry) return null;
+    const expiryDate = new Date(expiry);
+    const now = new Date();
+    const diffTime = expiryDate.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays;
+  };
+
+  const getDaysSinceCreation = (createdAt: string) => {
+    const createdDate = new Date(createdAt);
+    const now = new Date();
+    const diffTime = now.getTime() - createdDate.getTime();
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays;
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -146,17 +165,26 @@ export default function VouchersPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {vouchers.map((voucher) => {
                   const expired = isExpired(voucher.expiry);
+                  const daysRemaining = getDaysRemaining(voucher.expiry);
+                  const daysSinceCreation = getDaysSinceCreation(voucher.createdAt);
+                  const investmentValue = voucher.investmentValue || voucher.amount * (voucher.multiplier || 2);
+                  
                   return (
-                    <div key={voucher.id} className="bg-white rounded-lg shadow-lg p-6">
+                    <div key={voucher.id} className="bg-white rounded-lg shadow-lg p-6 border-2 border-indigo-100 hover:border-indigo-300 transition-all">
                       <div className="flex justify-between items-start mb-4">
-                        <div>
-                          <h3 className="text-lg font-bold text-gray-900">{voucher.voucherId}</h3>
-                          <p className="text-sm text-gray-500">
-                            Created: {new Date(voucher.createdOn).toLocaleDateString()}
+                        <div className="flex-1">
+                          <h3 className="text-lg font-bold text-gray-900 font-mono text-sm mb-1">{voucher.voucherId}</h3>
+                          <p className="text-xs text-gray-500">
+                            Created: {new Date(voucher.createdOn || voucher.createdAt).toLocaleString()}
                           </p>
+                          {daysSinceCreation !== null && (
+                            <p className="text-xs text-gray-400">
+                              {daysSinceCreation} day{daysSinceCreation !== 1 ? 's' : ''} ago
+                            </p>
+                          )}
                         </div>
                         <span
-                          className={`px-3 py-1 text-xs font-semibold rounded-full ${
+                          className={`px-3 py-1 text-xs font-semibold rounded-full whitespace-nowrap ${
                             voucher.status === 'active' && !expired
                               ? 'bg-green-100 text-green-800'
                               : voucher.status === 'used'
@@ -171,32 +199,91 @@ export default function VouchersPage() {
                       </div>
 
                       <div className="space-y-3 mb-4">
-                        <div className="flex justify-between items-center p-3 bg-indigo-50 rounded-lg">
-                          <span className="font-medium text-gray-700">Amount:</span>
-                          <span className="text-2xl font-bold text-indigo-600">
-                            ${voucher.amount.toFixed(2)}
-                          </span>
+                        <div className="p-3 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-lg">
+                          <div className="flex justify-between items-center mb-1">
+                            <span className="font-medium text-gray-700">Purchase Amount:</span>
+                            <span className="text-xl font-bold text-indigo-600">
+                              ${voucher.amount.toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-gray-600">Investment Value:</span>
+                            <span className="text-lg font-bold text-green-600">
+                              ${investmentValue.toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            Multiplier: {voucher.multiplier || 2}x
+                          </div>
                         </div>
-                        {voucher.fromWalletType && (
-                          <div className="flex justify-between items-center text-sm">
-                            <span className="text-gray-600">From Wallet:</span>
-                            <span className="font-semibold">{voucher.fromWalletType}</span>
+
+                        <div className="grid grid-cols-2 gap-3 text-sm">
+                          <div className="p-2 bg-gray-50 rounded">
+                            <div className="text-gray-600 text-xs mb-1">Created At</div>
+                            <div className="font-semibold text-gray-900">
+                              {new Date(voucher.createdOn || voucher.createdAt).toLocaleDateString()}
+                            </div>
+                            <div className="text-xs text-gray-400">
+                              {new Date(voucher.createdOn || voucher.createdAt).toLocaleTimeString()}
+                            </div>
+                          </div>
+
+                          {voucher.expiry && (
+                            <div className={`p-2 rounded ${expired ? 'bg-red-50' : 'bg-gray-50'}`}>
+                              <div className="text-gray-600 text-xs mb-1">Expiry Date</div>
+                              <div className={`font-semibold ${expired ? 'text-red-600' : 'text-gray-900'}`}>
+                                {new Date(voucher.expiry).toLocaleDateString()}
+                              </div>
+                              <div className={`text-xs ${expired ? 'text-red-500' : 'text-gray-400'}`}>
+                                {new Date(voucher.expiry).toLocaleTimeString()}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {voucher.expiry && daysRemaining !== null && (
+                          <div className={`p-3 rounded-lg ${expired ? 'bg-red-50 border border-red-200' : daysRemaining <= 7 ? 'bg-yellow-50 border border-yellow-200' : 'bg-green-50 border border-green-200'}`}>
+                            <div className="flex justify-between items-center">
+                              <span className={`font-semibold ${expired ? 'text-red-700' : daysRemaining <= 7 ? 'text-yellow-700' : 'text-green-700'}`}>
+                                Days Remaining:
+                              </span>
+                              <span className={`text-lg font-bold ${expired ? 'text-red-600' : daysRemaining <= 7 ? 'text-yellow-600' : 'text-green-600'}`}>
+                                {expired ? 'Expired' : daysRemaining <= 0 ? '0' : `${daysRemaining} day${daysRemaining !== 1 ? 's' : ''}`}
+                              </span>
+                            </div>
+                            {!expired && daysRemaining > 0 && (
+                              <div className="mt-2 w-full bg-gray-200 rounded-full h-2">
+                                <div
+                                  className={`h-2 rounded-full ${daysRemaining <= 7 ? 'bg-yellow-500' : 'bg-green-500'}`}
+                                  style={{ width: `${Math.min(100, (daysRemaining / 120) * 100)}%` }}
+                                ></div>
+                              </div>
+                            )}
                           </div>
                         )}
-                        {voucher.expiry && (
-                          <div className="flex justify-between items-center text-sm">
-                            <span className="text-gray-600">Expires:</span>
-                            <span className={`font-semibold ${expired ? 'text-red-600' : 'text-gray-900'}`}>
-                              {new Date(voucher.expiry).toLocaleDateString()}
-                            </span>
-                          </div>
-                        )}
+
                         {voucher.usedAt && (
-                          <div className="flex justify-between items-center text-sm">
-                            <span className="text-gray-600">Used On:</span>
-                            <span className="font-semibold">
-                              {new Date(voucher.usedAt).toLocaleDateString()}
-                            </span>
+                          <div className="p-2 bg-blue-50 rounded border border-blue-200">
+                            <div className="flex justify-between items-center text-sm">
+                              <span className="text-gray-600">Used On:</span>
+                              <span className="font-semibold text-blue-700">
+                                {new Date(voucher.usedAt).toLocaleString()}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+
+                        {voucher.fromWalletType && (
+                          <div className="flex justify-between items-center text-sm p-2 bg-gray-50 rounded">
+                            <span className="text-gray-600">Created From:</span>
+                            <span className="font-semibold text-gray-900">{voucher.fromWalletType} Wallet</span>
+                          </div>
+                        )}
+
+                        {voucher.createdBy && (
+                          <div className="flex justify-between items-center text-xs p-2 bg-gray-50 rounded">
+                            <span className="text-gray-500">Created By:</span>
+                            <span className="text-gray-700">{voucher.createdBy.name} ({voucher.createdBy.userId})</span>
                           </div>
                         )}
                       </div>

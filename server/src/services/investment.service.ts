@@ -472,12 +472,18 @@ export async function processInvestment(
         throw new AppError("Voucher has expired", 400);
       }
 
-      // Verify voucher investment value covers at least part of the amount
+      // Verify voucher investment value
+      // IMPORTANT: Voucher can be used for investments up to its investment value
+      // Examples:
+      // - $100 voucher (investment value $200) can cover $100 investment ✅
+      // - $100 voucher (investment value $200) can cover $200 investment ✅
+      // - $100 voucher (investment value $200) can cover $300 investment (partial - remaining paid via gateway) ✅
       const voucherInvestmentValue = parseFloat(voucher.investmentValue.toString());
       if (voucherInvestmentValue < amount) {
         // Voucher doesn't cover full amount, but that's okay - remaining will be paid via gateway
         // This is handled in createPayment controller
       }
+      // If voucherInvestmentValue >= amount, voucher fully covers the investment - no additional payment needed
 
       // Mark voucher as used
       voucher.status = "used";

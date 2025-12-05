@@ -17,6 +17,8 @@ import {
   getNOWPaymentsStatus,
   updateNOWPaymentsStatus,
   changeUserPassword,
+  getAllVouchers,
+  createVoucherForUser,
 } from "../controllers/admin.controller";
 import {
   getAllPackages,
@@ -90,5 +92,9 @@ router.delete("/career-levels/:id", requireAdminAuth, deleteCareerLevel);
 // Career progress management
 router.get("/career-progress", requireAdminAuth, getAllUsersCareerProgress);
 router.get("/career-progress/:userId", requireAdminAuth, getUserCareerProgressAdmin);
+
+// Voucher management
+router.get("/vouchers", requireAdminAuth, getAllVouchers);
+router.post("/vouchers", requireAdminAuth, createVoucherForUser);
 
 export default router;

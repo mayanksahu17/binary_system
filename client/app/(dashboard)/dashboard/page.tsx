@@ -62,6 +62,7 @@ export default function DashboardPage() {
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [voucherCount, setVoucherCount] = useState<{ total: number; active: number; used: number; expired: number }>({ total: 0, active: 0, used: 0, expired: 0 });
   const hasFetchedRef = useRef(false);
 
   useEffect(() => {
@@ -72,9 +73,43 @@ export default function DashboardPage() {
     hasFetchedRef.current = true;
     
     fetchDashboardData();
+    fetchVoucherCount();
 
     // No cleanup - we want to prevent duplicate calls even on remount
   }, []);
+
+  const fetchVoucherCount = async () => {
+    try {
+      const response = await api.getUserVouchers();
+      if (response.data?.vouchers) {
+        const vouchers = response.data.vouchers;
+        const now = new Date();
+        const active = vouchers.filter((v: any) => {
+          if (v.status !== 'active') return false;
+          if (v.expiry) {
+            return new Date(v.expiry) > now;
+          }
+          return true;
+        }).length;
+        const used = vouchers.filter((v: any) => v.status === 'used').length;
+        const expired = vouchers.filter((v: any) => {
+          if (v.expiry) {
+            return new Date(v.expiry) <= now;
+          }
+          return false;
+        }).length;
+        
+        setVoucherCount({
+          total: vouchers.length,
+          active,
+          used,
+          expired,
+        });
+      }
+    } catch (err: any) {
+      console.error('Failed to fetch voucher count:', err);
+    }
+  };
 
   const fetchDashboardData = async () => {
     try {
@@ -135,6 +170,30 @@ export default function DashboardPage() {
               {error}
             </div>
           )}
+
+          {/* Statistics Cards */}
+          <div className="mb-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white rounded-lg shadow p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">Total Vouchers</p>
+                  <p className="text-3xl font-bold text-gray-900 mt-1">{voucherCount.total}</p>
+                </div>
+                <div className="p-3 bg-indigo-100 rounded-full">
+                  <svg className="w-8 h-8 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+              </div>
+              <div className="mt-4 flex gap-2 text-xs">
+                <span className="px-2 py-1 bg-green-100 text-green-800 rounded">Active: {voucherCount.active}</span>
+                <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded">Used: {voucherCount.used}</span>
+                {voucherCount.expired > 0 && (
+                  <span className="px-2 py-1 bg-red-100 text-red-800 rounded">Expired: {voucherCount.expired}</span>
+                )}
+              </div>
+            </div>
+          </div>
 
           {/* Wallets Section */}
           <div className="mb-8">

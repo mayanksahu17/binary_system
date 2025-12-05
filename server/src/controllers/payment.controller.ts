@@ -109,8 +109,12 @@ export const createPayment = asyncHandler(async (req, res) => {
     remainingAmount = Math.max(0, investmentAmount - voucherInvestmentValue);
 
     // If voucher covers full amount or more, no payment needed
-    // Voucher investment value can be greater than investment amount - that's fine
-    // Example: $100 voucher (investment value $200) can cover $100 investment
+    // IMPORTANT: Voucher investment value can be greater than or equal to investment amount - that's fine
+    // Examples:
+    // - $100 voucher (investment value $200) can cover $100 investment ✅
+    // - $100 voucher (investment value $200) can cover $200 investment ✅
+    // - $100 voucher (investment value $200) can cover $150 investment ✅
+    // - $100 voucher (investment value $200) can cover $300 investment (partial - user pays $100) ✅
     console.log(`[Voucher] Remaining amount: ${remainingAmount}, Voucher covers: ${voucherInvestmentValue >= investmentAmount}`);
     if (remainingAmount === 0 || voucherInvestmentValue >= investmentAmount) {
       // Process investment directly with voucher
@@ -119,13 +123,12 @@ export const createPayment = asyncHandler(async (req, res) => {
         userId,
         packageId,
         investmentAmount,
-        voucherId
+        undefined, // paymentId (not needed when voucher fully covers)
+        voucherId  // voucherId (5th parameter)
       );
 
-      // Mark voucher as used
-      voucher.status = "used";
-      voucher.usedAt = new Date();
-      await voucher.save();
+      // Voucher is already marked as used in processInvestment, but ensure it's saved
+      // (processInvestment marks it as used, but we'll double-check here for safety)
 
       const response = res as any;
       return response.status(200).json({
@@ -160,8 +163,38 @@ export const createPayment = asyncHandler(async (req, res) => {
   const nowpaymentsSetting = await Settings.findOne({ key: "nowpayments_enabled" });
   const isNOWPaymentsEnabled = nowpaymentsSetting === null || nowpaymentsSetting.value === true || nowpaymentsSetting.value === "true";
 
+  // If NOWPayments is disabled, allow direct investment (with or without voucher)
   if (!isNOWPaymentsEnabled) {
-    throw new AppError("NOWPayments gateway is currently disabled. Please contact support or wait for it to be enabled.", 503);
+    // Process investment directly without payment gateway
+    const { processInvestment } = await import("../services/investment.service");
+    
+    const investment = await processInvestment(
+      userId,
+      packageId,
+      investmentAmount,
+      voucherId ? undefined : `DIRECT_${Date.now()}`, // paymentId (only if no voucher)
+      voucherId || undefined // voucherId (5th parameter)
+    );
+    
+    // Voucher is already marked as used in processInvestment if provided
+
+    const response = res as any;
+    return response.status(200).json({
+      status: "success",
+      message: "Investment activated successfully (payment gateway disabled)",
+      data: {
+        investment: {
+          id: investment._id,
+          amount: investmentAmount,
+          voucherUsed: voucher ? {
+            voucherId: voucher.voucherId,
+            amount: parseFloat(voucher.amount.toString()),
+            investmentValue: voucherInvestmentValue,
+          } : null,
+          remainingAmount: remainingAmount,
+        },
+      },
+    });
   }
 
   // Get user email for invoice

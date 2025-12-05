@@ -302,18 +302,24 @@ function InvestContent() {
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Use Voucher (Optional)
                     </label>
+                    <p className="text-xs text-gray-500 mb-2">
+                      💡 Tip: Vouchers can be used for investments up to their investment value. A $100 voucher (investment value $200) can cover any investment from $100 to $200.
+                    </p>
                     <select
                       value={selectedVoucherId || ''}
                       onChange={(e) => setSelectedVoucherId(e.target.value || null)}
                       className="w-full px-4 py-3 border border-gray-300 rounded-md text-black bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 mb-2"
                     >
                       <option value="">No voucher</option>
-                      {availableVouchers.map((voucher: any) => (
-                        <option key={voucher.voucherId} value={voucher.voucherId}>
-                          ${voucher.amount.toLocaleString()} voucher (Investment Value: ${voucher.investmentValue?.toLocaleString() || (voucher.amount * 2).toLocaleString()})
-                          {voucher.expiry && ` - Expires: ${new Date(voucher.expiry).toLocaleDateString()}`}
-                        </option>
-                      ))}
+                      {availableVouchers.map((voucher: any) => {
+                        const voucherInvestmentValue = voucher.investmentValue || voucher.amount * 2;
+                        return (
+                          <option key={voucher.voucherId} value={voucher.voucherId}>
+                            ${voucher.amount.toLocaleString()} voucher (Covers up to $${voucherInvestmentValue.toLocaleString()})
+                            {voucher.expiry && ` - Expires: ${new Date(voucher.expiry).toLocaleDateString()}`}
+                          </option>
+                        );
+                      })}
                     </select>
                     {selectedVoucherId && (() => {
                       const selectedVoucher = availableVouchers.find((v: any) => v.voucherId === selectedVoucherId);
@@ -321,22 +327,42 @@ function InvestContent() {
                         const voucherValue = selectedVoucher.investmentValue || selectedVoucher.amount * 2;
                         const investmentAmount = parseFloat(investAmount) || 0;
                         const remainingAmount = Math.max(0, investmentAmount - voucherValue);
+                        // Voucher covers full amount if investment amount is less than or equal to voucher investment value
+                        const voucherCoversFull = investmentAmount > 0 && voucherValue >= investmentAmount;
+                        
                         return (
-                          <div className="text-sm text-gray-600 space-y-1">
+                          <div className="text-sm text-gray-600 space-y-2">
                             <div className="flex justify-between">
-                              <span>Voucher Value:</span>
+                              <span>Voucher Investment Value:</span>
                               <span className="font-semibold text-green-600">${voucherValue.toLocaleString()}</span>
                             </div>
-                            {remainingAmount > 0 ? (
-                              <div className="flex justify-between">
-                                <span>Remaining to Pay:</span>
-                                <span className="font-semibold text-orange-600">${remainingAmount.toLocaleString()}</span>
+                            <div className="flex justify-between">
+                              <span>Your Investment Amount:</span>
+                              <span className="font-semibold text-gray-900">${investmentAmount.toLocaleString()}</span>
+                            </div>
+                            {voucherCoversFull ? (
+                              <div className="p-2 bg-green-50 border border-green-200 rounded">
+                                <div className="text-green-700 font-semibold flex items-center">
+                                  <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                  </svg>
+                                  Voucher fully covers your investment!
+                                </div>
+                                <div className="text-xs text-green-600 mt-1">
+                                  No additional payment required. Investment will be activated immediately.
+                                </div>
                               </div>
-                            ) : (
-                              <div className="text-green-600 font-semibold">
-                                ✓ Voucher covers full amount!
+                            ) : remainingAmount > 0 ? (
+                              <div className="space-y-1">
+                                <div className="flex justify-between">
+                                  <span>Remaining to Pay:</span>
+                                  <span className="font-semibold text-orange-600">${remainingAmount.toLocaleString()}</span>
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                  Voucher covers ${voucherValue.toLocaleString()}, pay remaining ${remainingAmount.toLocaleString()} via payment gateway
+                                </div>
                               </div>
-                            )}
+                            ) : null}
                           </div>
                         );
                       }
@@ -385,13 +411,25 @@ function InvestContent() {
                         {selectedVoucher && (
                           <>
                             <div className="flex justify-between border-t border-indigo-200 pt-2">
-                              <span className="text-gray-600">Voucher Applied:</span>
+                              <span className="text-gray-600">Voucher Applied (Investment Value):</span>
                               <span className="font-semibold text-green-600">-${voucherValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                             </div>
-                            <div className="flex justify-between">
-                              <span className="text-gray-600">Amount to Pay:</span>
-                              <span className="font-semibold text-orange-600">${remainingAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                            </div>
+                            {remainingAmount > 0 ? (
+                              <div className="flex justify-between">
+                                <span className="text-gray-600">Amount to Pay:</span>
+                                <span className="font-semibold text-orange-600">${remainingAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                              </div>
+                            ) : (
+                              <div className="flex justify-between items-center">
+                                <span className="text-gray-600">Amount to Pay:</span>
+                                <span className="font-semibold text-green-600 flex items-center">
+                                  <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                  </svg>
+                                  $0.00 (Fully Covered)
+                                </span>
+                              </div>
+                            )}
                           </>
                         )}
                         <div className="flex justify-between border-t border-indigo-200 pt-2">

@@ -1172,3 +1172,122 @@ export const changeUserPassword = asyncHandler(async (req, res) => {
   });
 });
 
+/**
+ * Get all vouchers (Admin)
+ * GET /api/v1/admin/vouchers
+ */
+export const getAllVouchers = asyncHandler(async (req, res) => {
+  const vouchers = await Voucher.find({})
+    .populate("user", "userId name email")
+    .populate("fromWallet", "type")
+    .populate("createdBy", "name userId")
+    .sort({ createdAt: -1 })
+    .lean();
+
+  const response = res as any;
+  response.status(200).json({
+    status: "success",
+    data: {
+      vouchers: vouchers.map((v) => ({
+        id: v._id,
+        voucherId: v.voucherId,
+        user: v.user
+          ? {
+              id: (v.user as any)._id,
+              userId: (v.user as any).userId,
+              name: (v.user as any).name,
+              email: (v.user as any).email,
+            }
+          : null,
+        amount: parseFloat(v.amount.toString()),
+        investmentValue: v.investmentValue ? parseFloat(v.investmentValue.toString()) : parseFloat(v.amount.toString()) * 2,
+        multiplier: v.multiplier || 2,
+        originalAmount: v.originalAmount
+          ? parseFloat(v.originalAmount.toString())
+          : null,
+        fromWalletType: (v.fromWallet as any)?.type || null,
+        createdBy: v.createdBy
+          ? {
+              name: (v.createdBy as any).name,
+              userId: (v.createdBy as any).userId,
+            }
+          : null,
+        status: v.status,
+        createdOn: v.createdOn,
+        createdAt: (v as any).createdAt,
+        usedAt: v.usedAt,
+        expiry: v.expiry,
+        paymentId: v.paymentId,
+        orderId: v.orderId,
+      })),
+    },
+  });
+});
+
+/**
+ * Create voucher for any user (Admin)
+ * POST /api/v1/admin/vouchers
+ */
+export const createVoucherForUser = asyncHandler(async (req, res) => {
+  const body = (req as any).body;
+  const { userId, amount, expiryDays = 120 } = body;
+
+  // Validation
+  if (!userId || !amount) {
+    throw new AppError("User ID and amount are required", 400);
+  }
+
+  if (amount <= 0) {
+    throw new AppError("Voucher amount must be greater than 0", 400);
+  }
+
+  // Find user by userId
+  const user = await User.findOne({ userId });
+  if (!user) {
+    throw new AppError("User not found", 404);
+  }
+
+  const voucherMultiplier = 2; // 2x multiplier: $100 voucher = $200 investment value
+  const investmentValue = amount * voucherMultiplier;
+  const expiryDate = new Date(Date.now() + (expiryDays || 120) * 24 * 60 * 60 * 1000);
+
+  // Generate unique voucher ID
+  const voucherId = `VCH-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+
+  // Create voucher (admin creates without payment gateway)
+  // Note: createdBy is set to user._id since the voucher belongs to the user
+  // Admin creation is tracked through the admin route/endpoint
+  const voucher = await Voucher.create({
+    voucherId,
+    user: user._id,
+    amount: Types.Decimal128.fromString(amount.toString()),
+    investmentValue: Types.Decimal128.fromString(investmentValue.toString()),
+    multiplier: voucherMultiplier,
+    originalAmount: Types.Decimal128.fromString(amount.toString()),
+    createdBy: user._id, // Voucher belongs to user, so createdBy is user
+    status: "active",
+    expiry: expiryDate,
+  });
+
+  const response = res as any;
+  response.status(201).json({
+    status: "success",
+    message: "Voucher created successfully",
+    data: {
+      voucher: {
+        id: voucher._id,
+        voucherId: voucher.voucherId,
+        userId: user.userId,
+        userName: user.name,
+        userEmail: user.email,
+        amount: parseFloat(voucher.amount.toString()),
+        investmentValue: parseFloat(voucher.investmentValue.toString()),
+        multiplier: voucher.multiplier,
+        status: voucher.status,
+        expiry: voucher.expiry,
+        createdAt: (voucher as any).createdAt,
+      },
+    },
+  });
+});
+

@@ -416,6 +416,20 @@ class ApiClient {
     });
   }
 
+  // Voucher Management (Admin)
+  async getAllVouchers() {
+    return this.request<{ vouchers: any[] }>('/admin/vouchers', {
+      method: 'GET',
+    });
+  }
+
+  async createVoucherForUser(data: { userId: string; amount: number; expiryDays?: number }) {
+    return this.request<{ voucher: any }>('/admin/vouchers', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
   async flushAllInvestments() {
     return this.request<{
       investmentsDeleted: number;
