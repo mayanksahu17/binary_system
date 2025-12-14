@@ -479,6 +479,9 @@ export const getUserReports = asyncHandler(async (req, res) => {
   const referralTransactions = transactions.filter(
     (tx) => (tx.wallet as any)?.type === WalletType.REFERRAL
   );
+  const careerLevelTransactions = transactions.filter(
+    (tx) => (tx.wallet as any)?.type === WalletType.CAREER_LEVEL
+  );
   const investmentTransactions = transactions.filter(
     (tx) => (tx.wallet as any)?.type === WalletType.INVESTMENT
   );
@@ -561,6 +564,7 @@ export const getUserReports = asyncHandler(async (req, res) => {
       roi: roiTransactions.map(formatTransaction),
       binary: binaryTransactions.map(formatTransaction),
       referral: referralTransactions.map(formatTransaction),
+      careerLevel: careerLevelTransactions.map(formatTransaction),
       investment: investmentTransactions.map(formatInvestmentTransaction),
       withdrawals: withdrawals.map(formatWithdrawal),
     },
@@ -583,7 +587,7 @@ export const createWithdrawal = asyncHandler(async (req, res) => {
     throw new AppError("Invalid withdrawal amount", 400);
   }
 
-  if (!walletType || !["roi", "interest", "r&b", "withdrawal"].includes(walletType)) {
+  if (!walletType || !["roi", "interest", "r&b", "withdrawal", "career_level"].includes(walletType)) {
     throw new AppError("Invalid wallet type", 400);
   }
 

@@ -85,17 +85,18 @@ export async function checkAndAwardCareerLevels(userId: Types.ObjectId): Promise
       const isAlreadyCompleted = completedLevelIds.includes(levelIdStr);
       const levelThreshold = parseFloat(level.investmentThreshold.toString());
       
-      // If level is not completed and total business meets threshold, complete it
-      if (!isAlreadyCompleted && totalBusinessVolume >= levelThreshold) {
+      // CRITICAL: Career level rewards should only trigger when BOTH sides (left AND right) meet the business volume threshold
+      // Both leftBusiness and rightBusiness must be >= levelThreshold
+      if (!isAlreadyCompleted && leftBusiness >= levelThreshold && rightBusiness >= levelThreshold) {
         const rewardAmount = parseFloat(level.rewardAmount.toString());
 
-        // Award the reward
-        await updateWallet(userId, WalletType.ROI, rewardAmount, "add");
+        // Award the reward to career level wallet
+        await updateWallet(userId, WalletType.CAREER_LEVEL, rewardAmount, "add");
 
         // Create transaction record
         await createWalletTransaction(
           userId,
-          WalletType.ROI,
+          WalletType.CAREER_LEVEL,
           "credit",
           rewardAmount,
           undefined,

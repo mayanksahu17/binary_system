@@ -43,11 +43,12 @@ export default function ReportsPage() {
   const [roiTransactions, setRoiTransactions] = useState<Transaction[]>([]);
   const [binaryTransactions, setBinaryTransactions] = useState<Transaction[]>([]);
   const [referralTransactions, setReferralTransactions] = useState<Transaction[]>([]);
+  const [careerLevelTransactions, setCareerLevelTransactions] = useState<Transaction[]>([]);
   const [investmentTransactions, setInvestmentTransactions] = useState<Transaction[]>([]);
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [activeTab, setActiveTab] = useState<'roi' | 'binary' | 'referral' | 'investment' | 'withdrawal'>('roi');
+  const [activeTab, setActiveTab] = useState<'roi' | 'binary' | 'referral' | 'careerLevel' | 'investment' | 'withdrawal'>('roi');
   const hasFetchedRef = useRef(false);
 
   useEffect(() => {
@@ -70,6 +71,7 @@ export default function ReportsPage() {
         setRoiTransactions(response.data.roi || []);
         setBinaryTransactions(response.data.binary || []);
         setReferralTransactions(response.data.referral || []);
+        setCareerLevelTransactions(response.data.careerLevel || []);
         setInvestmentTransactions(response.data.investment || []);
         setWithdrawals(response.data.withdrawals || []);
       }
@@ -424,7 +426,7 @@ export default function ReportsPage() {
           <div className="mb-6">
             <div className="border-b border-gray-200">
               <nav className="-mb-px flex space-x-8">
-                  {(['roi', 'binary', 'referral', 'investment', 'withdrawal'] as const).map((tab) => (
+                  {(['roi', 'binary', 'referral', 'careerLevel', 'investment', 'withdrawal'] as const).map((tab) => (
                   <button
                     key={tab}
                       onClick={() => setActiveTab(tab)}
@@ -434,9 +436,10 @@ export default function ReportsPage() {
                         : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                     } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm capitalize`}
                   >
-                      {tab} {tab === 'roi' && `(${roiTransactions.length})`}
+                      {tab === 'careerLevel' ? 'Career Level' : tab} {tab === 'roi' && `(${roiTransactions.length})`}
                       {tab === 'binary' && `(${binaryTransactions.length})`}
                       {tab === 'referral' && `(${referralTransactions.length})`}
+                      {tab === 'careerLevel' && `(${careerLevelTransactions.length})`}
                       {tab === 'investment' && `(${investmentTransactions.length})`}
                       {tab === 'withdrawal' && `(${withdrawals.length})`}
                   </button>
@@ -449,6 +452,7 @@ export default function ReportsPage() {
             {activeTab === 'roi' && renderTransactionTable(roiTransactions, 'ROI Transactions')}
             {activeTab === 'binary' && renderTransactionTable(binaryTransactions, 'Binary Bonus Transactions')}
             {activeTab === 'referral' && renderTransactionTable(referralTransactions, 'Referral Bonus Transactions')}
+            {activeTab === 'careerLevel' && renderTransactionTable(careerLevelTransactions, 'Career Level Transactions')}
             {activeTab === 'investment' && renderInvestmentTable()}
             {activeTab === 'withdrawal' && renderWithdrawalTable()}
           </div>

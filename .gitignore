@@ -36,3 +36,5 @@ build/
 # Node modules (already covered in subdirectories)
 node_modules/
 
+
+binary_sytem.pem

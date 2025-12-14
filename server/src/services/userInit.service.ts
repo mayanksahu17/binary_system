@@ -195,6 +195,7 @@ export async function initializeWallets(userId: Types.ObjectId) {
       { type: WalletType.BINARY, balance: "0", reserved: "0", currency: "USD" },
       { type: WalletType.TOKEN, balance: "0", reserved: "0", currency: "USD" },
       { type: WalletType.INVESTMENT, balance: "0", reserved: "0", currency: "USD" },
+      { type: WalletType.CAREER_LEVEL, balance: "0", reserved: "0", currency: "USD" },
     ];
 
     const wallets = await Promise.all(

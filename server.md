@@ -1,0 +1,1 @@
+ssh -i "binary_sytem.pem" ubuntu@ec2-13-62-101-152.eu-north-1.compute.amazonaws.com

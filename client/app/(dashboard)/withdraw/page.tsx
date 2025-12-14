@@ -69,7 +69,7 @@ export default function WithdrawPage() {
       if (walletsRes.data) {
         setWallets(walletsRes.data.wallets || []);
         const withdrawableWallets = walletsRes.data.wallets.filter(
-          (w: Wallet) => ['roi', 'interest', 'r&b', 'withdrawal'].includes(w.type)
+          (w: Wallet) => ['roi', 'interest', 'r&b', 'withdrawal', 'career_level'].includes(w.type)
         );
         if (withdrawableWallets.length > 0 && !selectedWalletType) {
           setSelectedWalletType(withdrawableWallets[0].type);
@@ -218,10 +218,10 @@ export default function WithdrawPage() {
                   >
                     <option value="">Select a wallet</option>
                     {wallets
-                      .filter((w) => ['roi', 'interest', 'r&b', 'withdrawal'].includes(w.type))
+                      .filter((w) => ['roi', 'interest', 'r&b', 'withdrawal', 'career_level'].includes(w.type))
                       .map((wallet) => (
                         <option key={wallet.type} value={wallet.type}>
-                          {wallet.type} - Available: ${(wallet.balance - wallet.reserved).toFixed(2)}
+                          {wallet.type === 'career_level' ? 'Career Level' : wallet.type} - Available: ${(wallet.balance - wallet.reserved).toFixed(2)}
                         </option>
                       ))}
                   </select>

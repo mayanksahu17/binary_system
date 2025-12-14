@@ -10,6 +10,7 @@ export enum WalletType {
   BINARY = "binary",
   TOKEN = "token",
   INVESTMENT = "investment",
+  CAREER_LEVEL = "career_level",
 }
 
 export enum TxnStatus {

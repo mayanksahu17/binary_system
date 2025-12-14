@@ -20,6 +20,7 @@ const WALLET_TYPE_LABELS: Record<string, string> = {
   binary: 'Binary Wallet',
   token: 'Token Wallet',
   investment: 'Investment Wallet',
+  career_level: 'Career Level Wallet',
 };
 
 export default function WalletExchangePage() {

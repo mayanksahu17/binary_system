@@ -148,6 +148,7 @@ export default function DashboardPage() {
       binary: 'Binary Bonus',
       token: 'Token',
       investment: 'Investment',
+      career_level: 'Career Level',
     };
     return names[type] || type;
   };
