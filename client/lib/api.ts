@@ -394,7 +394,7 @@ class ApiClient {
   }
 
   async getUserReports() {
-    return this.request<{ roi: any[]; binary: any[]; referral: any[]; investment: any[]; withdrawals: any[] }>('/user/reports', {
+    return this.request<{ roi: any[]; binary: any[]; referral: any[]; careerLevel: any[]; investment: any[]; withdrawals: any[] }>('/user/reports', {
       method: 'GET',
     });
   }
