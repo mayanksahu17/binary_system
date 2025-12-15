@@ -104,20 +104,20 @@ export const userSignup = asyncHandler(async (req, res) => {
     if (!emailRegex.test(email)) {
       throw new AppError("Invalid email format", 400);
     }
-
-    // Check if user with email already exists
-    const existingUserByEmail = await User.findOne({ email: email.toLowerCase() });
-    if (existingUserByEmail) {
-      throw new AppError("User with this email already exists", 409);
-    }
+    // NOTE:
+    // We intentionally do NOT enforce uniqueness on email anymore.
+    // Multiple user accounts can share the same email address.
   }
 
-  // Check if user with phone already exists
+  // Validate phone format if provided (basic length check only)
   if (phone) {
-    const existingUserByPhone = await User.findOne({ phone });
-    if (existingUserByPhone) {
-      throw new AppError("User with this phone number already exists", 409);
+    const cleanedPhone = phone.replace(/[^0-9+]/g, "");
+    if (cleanedPhone.length < 6) {
+      throw new AppError("Invalid phone number", 400);
     }
+    // NOTE:
+    // We intentionally do NOT enforce uniqueness on phone anymore.
+    // Multiple user accounts can share the same phone number.
   }
 
   // Validate referrer if provided (can use either referrerId or referrerUserId)
