@@ -35,7 +35,9 @@ export default function WalletExchangePage() {
   const [fromWalletType, setFromWalletType] = useState<string>('');
   const [toWalletType, setToWalletType] = useState<string>('');
   const [amount, setAmount] = useState('');
-  const [exchangeRate, setExchangeRate] = useState('1.0');
+  const [dailyLimitStatus, setDailyLimitStatus] = useState<Record<string, boolean>>({});
+  // Exchange rate is fixed at 1.0 (removed user input)
+  const exchangeRate = 1.0;
 
   useEffect(() => {
     // Prevent duplicate calls (React StrictMode in development)
@@ -56,11 +58,64 @@ export default function WalletExchangePage() {
       const response = await api.getUserWallets();
       if (response.data) {
         setWallets(response.data.wallets || []);
+        // Check daily limit status for Career Level and ROI wallets
+        await checkDailyLimitStatus(response.data.wallets || []);
       }
     } catch (err: any) {
       setError(err.message || 'Failed to fetch wallets');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const checkDailyLimitStatus = async (walletList: Wallet[]) => {
+    try {
+      // Get today's date range
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+
+      // Check for Career Level and ROI wallets
+      const careerLevelWallet = walletList.find(w => w.type === 'career_level');
+      const roiWallet = walletList.find(w => w.type === 'roi');
+
+      const status: Record<string, boolean> = {};
+
+      if (careerLevelWallet || roiWallet) {
+        // Fetch recent transactions to check if already exchanged today
+        const reportsResponse = await api.getUserReports();
+        if (reportsResponse.data) {
+          // Check all transactions for today's exchanges
+          const allTransactions = [
+            ...(reportsResponse.data.roi || []),
+            ...(reportsResponse.data.careerLevel || []),
+            ...(reportsResponse.data.referral || []),
+            ...(reportsResponse.data.binary || []),
+          ];
+
+          allTransactions.forEach((tx: any) => {
+            const txDate = new Date(tx.createdAt || tx.date);
+            if (txDate >= today && txDate < tomorrow) {
+              // Check if this is a wallet exchange debit transaction
+              if (tx.type === 'debit' && tx.meta?.type === 'wallet_exchange') {
+                // Check fromWallet in meta to see which wallet was exchanged from
+                const fromWallet = tx.meta?.fromWallet;
+                if (fromWallet === 'career_level') {
+                  status.career_level = true; // Already exchanged today
+                } else if (fromWallet === 'roi') {
+                  status.roi = true; // Already exchanged today
+                }
+              }
+            }
+          });
+        }
+      }
+
+      setDailyLimitStatus(status);
+    } catch (err) {
+      // Silently fail - daily limit check is not critical for UI
+      console.error('Failed to check daily limit status:', err);
     }
   };
 
@@ -71,6 +126,26 @@ export default function WalletExchangePage() {
     
     if (!fromWalletType || !toWalletType || !amount) {
       setError('Please fill in all fields');
+      return;
+    }
+
+    // Validate: Only allow exchange FROM referral, binary, career_level, or roi wallets
+    const allowedFromWallets = ['referral', 'binary', 'career_level', 'roi'];
+    if (!allowedFromWallets.includes(fromWalletType)) {
+      setError('You can only exchange from Referral, Binary, Career Level, or ROI wallets');
+      return;
+    }
+
+    // Check daily limit for Career Level and ROI wallets
+    if ((fromWalletType === 'career_level' || fromWalletType === 'roi') && dailyLimitStatus[fromWalletType]) {
+      const walletName = fromWalletType === 'career_level' ? 'Career Level' : 'ROI';
+      setError(`You have already exchanged from ${walletName} wallet today. You can only exchange once per day from this wallet.`);
+      return;
+    }
+
+    // Validate: Only allow exchange TO withdrawal wallet
+    if (toWalletType !== 'withdrawal') {
+      setError('You can only exchange to Withdrawal wallet');
       return;
     }
 
@@ -100,12 +175,12 @@ export default function WalletExchangePage() {
 
     try {
       setExchanging(true);
-      const rate = parseFloat(exchangeRate) || 1.0;
+      // Exchange rate is fixed at 1.0
       const response = await api.exchangeWalletFunds({
         fromWalletType,
         toWalletType,
         amount: exchangeAmount,
-        exchangeRate: rate,
+        exchangeRate: 1.0, // Fixed at 1:1
       });
 
       if (response.data) {
@@ -117,8 +192,7 @@ export default function WalletExchangePage() {
         setFromWalletType('');
         setToWalletType('');
         setAmount('');
-        setExchangeRate('1.0');
-        // Refresh wallets
+        // Refresh wallets and daily limit status
         await fetchWallets();
       }
     } catch (err: any) {
@@ -183,15 +257,43 @@ export default function WalletExchangePage() {
                       required
                     >
                       <option value="">Select source wallet</option>
-                      {wallets.map((wallet) => {
-                        const available = getAvailableBalance(wallet.type);
-                        return (
-                          <option key={wallet.type} value={wallet.type}>
-                            {WALLET_TYPE_LABELS[wallet.type] || wallet.type} - Available: ${available.toFixed(2)}
-                          </option>
-                        );
-                      })}
+                      {wallets
+                        .filter((wallet) => 
+                          wallet.type === 'referral' || 
+                          wallet.type === 'binary' || 
+                          wallet.type === 'career_level' || 
+                          wallet.type === 'roi'
+                        )
+                        .map((wallet) => {
+                          const available = getAvailableBalance(wallet.type);
+                          const isDailyLimitReached = dailyLimitStatus[wallet.type];
+                          const dailyLimitText = (wallet.type === 'career_level' || wallet.type === 'roi') && isDailyLimitReached
+                            ? ' (Daily limit reached)'
+                            : '';
+                          return (
+                            <option 
+                              key={wallet.type} 
+                              value={wallet.type}
+                              disabled={isDailyLimitReached}
+                            >
+                              {WALLET_TYPE_LABELS[wallet.type] || wallet.type} - Available: ${available.toFixed(2)}{dailyLimitText}
+                            </option>
+                          );
+                        })}
                     </select>
+                    <p className="mt-1 text-xs text-gray-500">
+                      You can exchange from Referral, Binary, Career Level, or ROI wallets
+                    </p>
+                    {(fromWalletType === 'career_level' || fromWalletType === 'roi') && dailyLimitStatus[fromWalletType] && (
+                      <p className="mt-1 text-xs text-red-600 font-medium">
+                        ⚠️ You have already exchanged from this wallet today. Daily limit: 1 exchange per day.
+                      </p>
+                    )}
+                    {(fromWalletType === 'career_level' || fromWalletType === 'roi') && !dailyLimitStatus[fromWalletType] && (
+                      <p className="mt-1 text-xs text-amber-600 font-medium">
+                        ℹ️ Daily limit: You can exchange from this wallet once per day.
+                      </p>
+                    )}
                     {fromWalletType && (
                       <p className="mt-1 text-sm text-gray-500">
                         Available: ${getAvailableBalance(fromWalletType).toFixed(2)}
@@ -212,13 +314,16 @@ export default function WalletExchangePage() {
                     >
                       <option value="">Select destination wallet</option>
                       {wallets
-                        .filter((wallet) => wallet.type !== fromWalletType)
+                        .filter((wallet) => wallet.type === 'withdrawal')
                         .map((wallet) => (
                           <option key={wallet.type} value={wallet.type}>
                             {WALLET_TYPE_LABELS[wallet.type] || wallet.type}
                           </option>
                         ))}
                     </select>
+                    <p className="mt-1 text-xs text-gray-500">
+                      Funds can only be transferred to Withdrawal wallet
+                    </p>
                   </div>
 
                   {/* Amount */}
@@ -243,27 +348,17 @@ export default function WalletExchangePage() {
                     )}
                   </div>
 
-                  {/* Exchange Rate (Optional) */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Exchange Rate (Optional)
-                      <span className="text-gray-500 text-xs ml-2">Default: 1.0 (1:1)</span>
-                    </label>
-                    <input
-                      type="number"
-                      value={exchangeRate}
-                      onChange={(e) => setExchangeRate(e.target.value)}
-                      min="0.01"
-                      step="0.01"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-black bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      placeholder="1.0"
-                    />
-                    {amount && exchangeRate && (
-                      <p className="mt-1 text-sm text-gray-500">
-                        You will receive: ${(parseFloat(amount) * (parseFloat(exchangeRate) || 1.0)).toFixed(2)}
+                  {/* Exchange Rate is fixed at 1:1 - hidden from user */}
+                  {amount && (
+                    <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                      <p className="text-sm text-blue-800">
+                        <strong>Exchange Rate:</strong> 1:1 (Fixed)
                       </p>
-                    )}
-                  </div>
+                      <p className="text-sm text-blue-700 mt-1">
+                        You will receive: <strong>${parseFloat(amount).toFixed(2)}</strong> in Withdrawal wallet
+                      </p>
+                    </div>
+                  )}
 
                   {/* Submit Button */}
                   <button

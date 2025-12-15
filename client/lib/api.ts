@@ -92,25 +92,6 @@ class ApiClient {
     });
   }
 
-  async updateProfile(data: {
-    name?: string;
-    email?: string;
-    phone?: string;
-    country?: string;
-    walletAddress?: string;
-    bankAccount?: {
-      accountNumber?: string;
-      bankName?: string;
-      ifscCode?: string;
-      accountHolderName?: string;
-    };
-  }) {
-    return this.request<{ user: any }>('/user/profile', {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    });
-  }
-
   async validateReferrer(referrerId: string) {
     return this.request<{ valid: boolean; message: string; referrer?: { userId: string; name: string } }>(`/auth/validate-referrer/${encodeURIComponent(referrerId)}`, {
       method: 'GET',
@@ -158,6 +139,25 @@ class ApiClient {
   async getUserProfile() {
     return this.request<{ user: any }>('/auth/me', {
       method: 'GET',
+    });
+  }
+
+  async updateProfile(data: {
+    name?: string;
+    email?: string;
+    phone?: string;
+    country?: string;
+    walletAddress?: string;
+    bankAccount?: {
+      accountNumber?: string;
+      bankName?: string;
+      ifscCode?: string;
+      accountHolderName?: string;
+    };
+  }) {
+    return this.request<{ user: any }>('/user/profile', {
+      method: 'PUT',
+      body: JSON.stringify(data),
     });
   }
 
@@ -395,6 +395,12 @@ class ApiClient {
 
   async getUserReports() {
     return this.request<{ roi: any[]; binary: any[]; referral: any[]; careerLevel: any[]; investment: any[]; withdrawals: any[] }>('/user/reports', {
+      method: 'GET',
+    });
+  }
+
+  async getUserDirectReferrals() {
+    return this.request<{ referrals: any[]; count: number }>('/user/direct-referrals', {
       method: 'GET',
     });
   }

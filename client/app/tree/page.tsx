@@ -202,7 +202,9 @@ export default function TreePage() {
     const fetchTreeData = async () => {
       try {
         setLoading(true);
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://13.48.131.244:5001/api/v1';
+        // Use same default as API client: local backend in development,
+        // overrideable via NEXT_PUBLIC_API_URL in staging/production.
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001/api/v1';
         const response = await fetch(`${apiUrl}/tree/view`);
         if (!response.ok) {
           throw new Error('Failed to fetch tree data');
@@ -400,7 +402,7 @@ export default function TreePage() {
             style: { 
               stroke: isAdmin ? '#f5576c' : (isLeft ? '#667eea' : isRight ? '#764ba2' : '#9ca3af'), 
               strokeWidth: isAdmin ? 4 : 3 
-            },
+            }, 
             label: isAdmin ? '' : (isLeft ? 'L' : isRight ? 'R' : ''),
             labelStyle: { 
               fill: isAdmin ? '#f5576c' : (isLeft ? '#667eea' : isRight ? '#764ba2' : '#9ca3af'), 
@@ -779,4 +781,3 @@ export default function TreePage() {
     </ProtectedRoute>
   );
 }
-

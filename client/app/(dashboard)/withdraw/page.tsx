@@ -68,8 +68,10 @@ export default function WithdrawPage() {
 
       if (walletsRes.data) {
         setWallets(walletsRes.data.wallets || []);
-        const withdrawableWallets = walletsRes.data.wallets.filter(
-          (w: Wallet) => ['roi', 'interest', 'r&b', 'withdrawal', 'career_level'].includes(w.type)
+        const withdrawableWallets = walletsRes.data.wallets.filter((w: Wallet) =>
+          ['roi', 'interest', 'referral_binary', 'referral', 'binary', 'withdrawal', 'career_level'].includes(
+            w.type
+          )
         );
         if (withdrawableWallets.length > 0 && !selectedWalletType) {
           setSelectedWalletType(withdrawableWallets[0].type);
@@ -218,12 +220,34 @@ export default function WithdrawPage() {
                   >
                     <option value="">Select a wallet</option>
                     {wallets
-                      .filter((w) => ['roi', 'interest', 'r&b', 'withdrawal', 'career_level'].includes(w.type))
-                      .map((wallet) => (
-                        <option key={wallet.type} value={wallet.type}>
-                          {wallet.type === 'career_level' ? 'Career Level' : wallet.type} - Available: ${(wallet.balance - wallet.reserved).toFixed(2)}
-                        </option>
-                      ))}
+                      .filter((w) =>
+                        ['roi', 'interest', 'referral_binary', 'referral', 'binary', 'withdrawal', 'career_level'].includes(
+                          w.type
+                        )
+                      )
+                      .map((wallet) => {
+                        const label =
+                          wallet.type === 'career_level'
+                            ? 'Career Level'
+                            : wallet.type === 'referral_binary'
+                            ? 'Referral & Binary'
+                            : wallet.type === 'referral'
+                            ? 'Referral Wallet'
+                            : wallet.type === 'binary'
+                            ? 'Binary Wallet'
+                            : wallet.type === 'roi'
+                            ? 'ROI Wallet'
+                            : wallet.type === 'withdrawal'
+                            ? 'Withdrawal Wallet'
+                            : wallet.type === 'interest'
+                            ? 'Interest Wallet'
+                            : wallet.type;
+                        return (
+                          <option key={wallet.type} value={wallet.type}>
+                            {label} - Available: ${(wallet.balance - wallet.reserved).toFixed(2)}
+                          </option>
+                        );
+                      })}
                   </select>
                 </div>
 

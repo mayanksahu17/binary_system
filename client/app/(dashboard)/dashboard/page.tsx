@@ -63,6 +63,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [voucherCount, setVoucherCount] = useState<{ total: number; active: number; used: number; expired: number }>({ total: 0, active: 0, used: 0, expired: 0 });
+  const [directReferrals, setDirectReferrals] = useState<any[]>([]);
   const hasFetchedRef = useRef(false);
 
   useEffect(() => {
@@ -114,12 +115,13 @@ export default function DashboardPage() {
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
-      const [walletsRes, investmentsRes, binaryTreeRes, referralLinksRes, userProfileRes] = await Promise.all([
+      const [walletsRes, investmentsRes, binaryTreeRes, referralLinksRes, userProfileRes, directReferralsRes] = await Promise.all([
         api.getUserWallets(),
         api.getUserInvestments(),
         api.getUserBinaryTree().catch(() => ({ data: null })), // Don't fail if binary tree not found
         api.getUserReferralLinks().catch(() => ({ data: null })), // Don't fail if referral links not found
         api.getUserProfile().catch(() => ({ data: null })), // Get user profile for wallet address
+        api.getUserDirectReferrals().catch(() => ({ data: { referrals: [], count: 0 } })), // Don't fail if no referrals
       ]);
 
       if (walletsRes.data) setWallets(walletsRes.data.wallets);
@@ -130,6 +132,9 @@ export default function DashboardPage() {
         if (userProfileRes.data.user.walletAddress) {
           setWalletAddress(userProfileRes.data.user.walletAddress);
         }
+      }
+      if (directReferralsRes.data) {
+        setDirectReferrals(directReferralsRes.data.referrals || []);
       }
     } catch (err: any) {
       setError(err.message || 'Failed to load dashboard data');
@@ -324,6 +329,75 @@ export default function DashboardPage() {
               </div>
             </div>
           )}
+
+          {/* Direct Referrals Section */}
+          <div className="mb-8">
+            <h2 className="text-xl font-bold mb-4 text-gray-900">My Direct Referrals</h2>
+            <div className="bg-white rounded-lg shadow overflow-hidden">
+              {directReferrals.length === 0 ? (
+                <div className="p-6 text-center text-gray-500 text-sm">
+                  You don't have any direct referrals yet. Share your referral links to start building your team.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">User ID</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Phone</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Position</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Country</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Joined At</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {directReferrals.map((ref) => (
+                        <tr key={ref.id}>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-700">
+                            {ref.userId || 'N/A'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {ref.name || 'N/A'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {ref.email || '—'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {ref.phone || '—'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 capitalize">
+                            {ref.position || '—'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {ref.country || '—'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {ref.joinedAt ? new Date(ref.joinedAt).toLocaleDateString() : '—'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            <span
+                              className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                                ref.status === 'active'
+                                  ? 'bg-green-100 text-green-800'
+                                  : ref.status === 'blocked' || ref.status === 'suspended'
+                                  ? 'bg-red-100 text-red-800'
+                                  : 'bg-gray-100 text-gray-800'
+                              }`}
+                            >
+                              {ref.status || 'unknown'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
 
           {/* Binary Tree Info Section */}
           {binaryTree && (

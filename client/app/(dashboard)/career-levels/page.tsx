@@ -25,6 +25,11 @@ interface CareerProgress {
   lastCheckedAt: string | null;
 }
 
+interface BinaryTreeInfo {
+  leftBusiness: number;
+  rightBusiness: number;
+}
+
 interface CareerLevel {
   id: string;
   name: string;
@@ -38,6 +43,7 @@ export default function CareerLevelsPage() {
   const { user } = useAuth();
   const [progress, setProgress] = useState<CareerProgress | null>(null);
   const [allLevels, setAllLevels] = useState<CareerLevel[]>([]);
+  const [binaryTree, setBinaryTree] = useState<BinaryTreeInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -49,11 +55,22 @@ export default function CareerLevelsPage() {
     try {
       setLoading(true);
       setError('');
-      
-      // Fetch user's career progress
-      const progressRes = await api.getUserCareerProgress();
+
+      // Fetch user's career progress + binary tree in parallel
+      const [progressRes, binaryTreeRes] = await Promise.all([
+        api.getUserCareerProgress(),
+        api.getUserBinaryTree().catch(() => ({ data: null })),
+      ]);
+
       if (progressRes.data) {
         setProgress(progressRes.data.progress);
+      }
+
+      if (binaryTreeRes.data?.binaryTree) {
+        setBinaryTree({
+          leftBusiness: binaryTreeRes.data.binaryTree.leftBusiness || 0,
+          rightBusiness: binaryTreeRes.data.binaryTree.rightBusiness || 0,
+        });
       }
 
       // Fetch all career levels (to show what's available)
@@ -78,6 +95,11 @@ export default function CareerLevelsPage() {
   const getProgressPercentage = (current: number, threshold: number) => {
     if (threshold === 0) return 0;
     return Math.min(100, (current / threshold) * 100);
+  };
+
+  const getSideProgressPercentage = (sideBusiness: number, perSideTarget: number) => {
+    if (perSideTarget === 0) return 0;
+    return Math.min(100, (sideBusiness / perSideTarget) * 100);
   };
 
   const formatDate = (dateString: string) => {
@@ -153,6 +175,95 @@ export default function CareerLevelsPage() {
                     {getProgressPercentage(progress.levelInvestment, progress.currentLevel.investmentThreshold).toFixed(1)}% complete
                   </p>
                 </div>
+
+                {/* Left & Right Business Targets (Per Side) */}
+                {binaryTree && (
+                  <div className="mt-6">
+                    <h3 className="text-sm font-semibold text-gray-700 mb-2">
+                      Left & Right Business Targets (per side)
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Left Side */}
+                      <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                        <div className="flex justify-between text-xs text-gray-600 mb-1">
+                          <span>Left Business</span>
+                          <span>
+                            $
+                            {binaryTree.leftBusiness.toLocaleString('en-US', {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}{' '}
+                            / $
+                            {progress.currentLevel.investmentThreshold.toLocaleString('en-US', {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-3">
+                          <div
+                            className="bg-blue-500 h-3 rounded-full transition-all duration-300"
+                            style={{
+                              width: `${getSideProgressPercentage(
+                                binaryTree.leftBusiness,
+                                progress.currentLevel.investmentThreshold
+                              )}%`,
+                            }}
+                          ></div>
+                        </div>
+                        <p className="mt-1 text-xs text-gray-500">
+                          {getSideProgressPercentage(
+                            binaryTree.leftBusiness,
+                            progress.currentLevel.investmentThreshold
+                          ).toFixed(1)}
+                          % of left-side target achieved
+                        </p>
+                      </div>
+
+                      {/* Right Side */}
+                      <div className="p-4 bg-purple-50 border border-purple-200 rounded-lg">
+                        <div className="flex justify-between text-xs text-gray-600 mb-1">
+                          <span>Right Business</span>
+                          <span>
+                            $
+                            {binaryTree.rightBusiness.toLocaleString('en-US', {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}{' '}
+                            / $
+                            {progress.currentLevel.investmentThreshold.toLocaleString('en-US', {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-3">
+                          <div
+                            className="bg-purple-500 h-3 rounded-full transition-all duration-300"
+                            style={{
+                              width: `${getSideProgressPercentage(
+                                binaryTree.rightBusiness,
+                                progress.currentLevel.investmentThreshold
+                              )}%`,
+                            }}
+                          ></div>
+                        </div>
+                        <p className="mt-1 text-xs text-gray-500">
+                          {getSideProgressPercentage(
+                            binaryTree.rightBusiness,
+                            progress.currentLevel.investmentThreshold
+                          ).toFixed(1)}
+                          % of right-side target achieved
+                        </p>
+                      </div>
+                    </div>
+                    <p className="mt-2 text-xs text-gray-500">
+                      Career level reward unlocks when{' '}
+                      <span className="font-semibold">both</span> left and right business reach the
+                      full target amount.
+                    </p>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="text-center py-8">

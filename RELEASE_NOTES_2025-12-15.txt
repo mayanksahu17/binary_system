@@ -1,0 +1,212 @@
+Release: 2025-12-15
+Scope: Career-level wallet, signup UX, wallet exchange, withdrawals, profile/payment info, and dashboard visibility fixes based on QA items 1–9.
+
+--------------------------------------------------
+1) Multiple accounts with same email / mobile
+--------------------------------------------------
+Issue:
+- Signup previously enforced unique email and unique phone, so testers could not create multiple user accounts sharing the same email or phone number.
+
+Fix:
+- Removed uniqueness enforcement for email and phone on the backend `userSignup` path.
+- Validation now only checks format (basic email regex and basic phone length/format), not uniqueness.
+
+Key Technical Notes:
+- Backend: `auth.controller.ts` (userSignup)
+  - Removed `findOne({ email })` and `findOne({ phone })` uniqueness checks.
+  - Left existing format validations in place.
+- Database: existing unique indexes on email/phone remain but are now effectively soft; we do not rely on them for application-level validation.
+
+Impact:
+- QA can now create multiple test accounts with the same email/phone.
+- This also matches the business requirement that one email/phone can manage multiple CROWN IDs.
+
+--------------------------------------------------
+2) Create Account button stuck (spinner never stops)
+--------------------------------------------------
+Issue:
+- On the signup page, clicking "Create Account" sometimes left the button in a perpetual loading state.
+- This was especially visible when referrer validation failed or when the backend returned 4xx errors (e.g., duplicate email/phone from the old behavior).
+
+Fix:
+- Frontend: ensured that the signup flow always clears the loading state in `finally` blocks, even on error.
+- Backend: removal of email/phone uniqueness errors (see #1) eliminated one major source of 409/loop scenarios.
+
+Key Technical Notes:
+- Frontend: `client/app/signup/page.tsx` and `AuthContext.tsx`
+  - Centralized `setLoading(false)` in `finally`.
+  - Improved error handling and toast messages when signup fails (invalid referrer, password, etc.).
+
+Impact:
+- The "Create Account" button no longer spins forever.
+- Users always receive a clear error message when signup fails.
+
+--------------------------------------------------
+3) No direct referrals list on user dashboard
+--------------------------------------------------
+Issue:
+- Users could not see a list of their own direct referrals (level-1), which testers flagged as missing.
+
+Fix:
+- Backend:
+  - Added `GET /api/v1/user/direct-referrals` endpoint returning level-1 referrals for the authenticated user.
+  - Controller: `getUserDirectReferrals` in `server/src/controllers/user.controller.ts`.
+- Routes:
+  - Registered new route in `server/src/routes/user.routes.ts`.
+- Frontend API:
+  - Added `api.getUserDirectReferrals()` in `client/lib/api.ts`.
+- Frontend UI:
+  - Dashboard page now fetches `directReferrals` and renders a "My Direct Referrals" table with User ID, name, email, phone, position, country, joined date, and status.
+
+Impact:
+- Every user can see their own direct referrals list from the dashboard.
+
+--------------------------------------------------
+4) Career-level rewards & wallets (context from previous work)
+--------------------------------------------------
+Summary (already shipped prior to this QA round, but relevant context):
+- Introduced a dedicated `CAREER_LEVEL` wallet for career rewards (no longer mixed into ROI wallet).
+- Fixed career-level logic so a level triggers only when both left and right business meet the threshold independently.
+- Added reports and withdrawal support for the new wallet type.
+
+No changes were requested in this QA batch beyond better visualization (see #8).
+
+--------------------------------------------------
+5) Binary info page: carry forward business & parent info
+--------------------------------------------------
+Issue:
+- QA reported that in the **user Binary Info section**, carry forward business and parent information were either confusing or incorrect.
+
+Status:
+- **Partially addressed / pending explicit spec**.
+- Current behavior:
+  - Binary info section on the user dashboard shows left/right business, left/right carry, and parent/children details using `BinaryTree` data.
+- No structural changes were made in this QA iteration because the report was partly about correctness and partly about expectations.
+
+Next Steps (not yet implemented):
+- Clarify the exact expected formulas and display for "carry forward business".
+- Add a dedicated QA story to validate parent/child relationships for a few concrete user IDs and adjust mapping if needed.
+
+--------------------------------------------------
+6) Wallet exchange restrictions (career-level + ROI)
+--------------------------------------------------
+Issue:
+- Wallet exchange allowed unsafe/unwanted operations:
+  - Users could exchange from the **Investment** wallet into other wallets.
+  - Users could set arbitrary custom exchange rates (multipliers).
+  - Example: user `CROWN-000010` could misuse Investment and arbitrary rates.
+
+Fix:
+- Backend restrictions (enforced in `exchangeWalletFunds`):
+  - Allowed **source wallets**: `referral`, `binary`, `career_level`, `roi`.
+  - Allowed **destination wallet**: `withdrawal` **only**.
+  - Investment wallet is no longer a valid source.
+  - Exchange rate is fixed at **1.0** server-side; user input is ignored.
+  - Added a daily limit for `CAREER_LEVEL` and `ROI` exchanges: max **1 exchange per day per wallet** (using `WalletTransaction` with `meta.type === 'wallet_exchange'` to enforce).
+- Frontend (`wallet-exchange` page):
+  - "From Wallet" dropdown only lists allowed sources (Referral, Binary, Career Level, ROI).
+  - "To Wallet" dropdown only lists Withdrawal.
+  - Removed exchange-rate input field and replaced it with informational text (1:1 fixed rate, calculated receive amount).
+  - Client-side validations mirror backend rules and show clear error messages.
+
+Impact:
+- No more Investment → other wallet conversion.
+- No arbitrary exchange rate/multiplier abuse.
+- Users can move Referral/Binary/Career-Level/ROI earnings to Withdrawal in a controlled, audited way.
+
+--------------------------------------------------
+7) Withdrawals: missing Referral/Binary wallets
+--------------------------------------------------
+Issue:
+- In **Withdraw Funds**, the dropdown did not include Referral and Binary wallets as sources.
+- QA expected users to be able to withdraw Referral/Binary earnings directly.
+
+Fix:
+- Backend:
+  - `Withdrawal.walletType` enum expanded to accept `"referral"` and `"binary"` in addition to existing types (`"roi"`, `"interest"`, `"r&b"`, `"withdrawal"`, `"career_level"`).
+  - `createWithdrawal` now validates and supports `referral` and `binary` as `walletType` values.
+- Frontend (`withdraw` page):
+  - "Select Wallet" dropdown now includes **Referral Wallet** and **Binary Wallet** where balances exist.
+  - Labels updated for clarity (Referral & Binary vs dedicated Referral/Binary where relevant).
+
+Impact:
+- Users can request withdrawals from Referral and Binary wallets as per business rules.
+
+--------------------------------------------------
+8) Career levels: show left/right targets separately (graphics)
+--------------------------------------------------
+Issue:
+- Career levels were only showing a **single total target**, which made it hard for users to understand that **both left and right business** must hit the threshold.
+
+Fix:
+- User Career Levels page (`client/app/(dashboard)/career-levels/page.tsx`):
+  - Still shows existing overall level progress (current level, reward, total business volume, completed levels, etc.).
+  - Added explicit **left-side** and **right-side** progress visualization for the current level:
+    - Uses binary tree data (`leftBusiness`, `rightBusiness`) fetched via `getUserBinaryTree`.
+    - Renders two side-by-side progress bars:
+      - Left Business: current left business vs current level’s investment threshold.
+      - Right Business: current right business vs the same threshold.
+    - Shows `$current / $target` and a percentage per side.
+  - Added explanatory text: career-level reward triggers **only when both sides reach 100% of the target**.
+
+Impact:
+- Users can clearly see separate left/right progress toward the next career level.
+- This matches the rule change that both legs must meet the threshold.
+
+--------------------------------------------------
+9) Profile vs dashboard: payment info update inconsistency
+--------------------------------------------------
+Issue:
+- Users could update **payment info** (crypto wallet address) from the dashboard home page, but attempts from the **Profile** page failed with an error.
+- Root cause: the Profile page was calling a non-existent or mismatched API endpoint.
+
+Fix:
+- Backend:
+  - Added `PUT /api/v1/user/profile` endpoint (`updateUserProfile` in `user.controller.ts`) to update:
+    - name, email, phone, country
+    - walletAddress
+    - bankAccount (accountNumber, bankName, IFSC, accountHolderName)
+  - Validation reuses the same relaxed uniqueness rules as signup (no unique constraint on email/phone, format-only checks).
+- Routes:
+  - Registered `router.put("/profile", requireAuth, updateUserProfile);` in `user.routes.ts`.
+- Frontend API:
+  - Implemented `api.updateProfile(...)` using `PUT /user/profile`.
+- Profile UI:
+  - Profile form now uses `api.updateProfile(formData)` on submit.
+  - On success, it toasts "Profile updated successfully" and refreshes auth data via `refreshAuth()`.
+
+Impact:
+- Payment info (wallet address + optional bank details) can be updated consistently from **either** dashboard or profile.
+- Users no longer see mysterious errors when saving from the profile screen.
+
+--------------------------------------------------
+10) Binary tree navigation & search (user + admin)
+--------------------------------------------------
+User request:
+- Provide the ability to navigate binary downlines "one by one" and search for a specific user ID within the tree.
+
+Actions taken:
+- Experimented with drill-down and search behavior on the **user `My Genealogy` page** and admin tree.
+- After review, these changes were **explicitly reverted** at your request so that both panels match the existing production UX.
+
+Current status (as of this release):
+- **User `My Genealogy`**:
+  - Shows static tree rooted at the logged-in user, as before.
+  - No drill-down or search UI is currently active.
+- **Admin Binary Tree (`/tree`)**:
+  - Uses `/api/v1/tree/view` and renders the full tree as before.
+  - Fixed a dev-only bug where it was still calling a hard-coded remote IP; it now respects `NEXT_PUBLIC_API_URL` (defaulting to `http://localhost:5001/api/v1` in local dev), so the loading screen no longer hangs.
+
+Future work (not shipped in this release):
+- Revisit drill-down/search design for binary trees with a separate design/UX cycle and explicit sign-off before enabling in production.
+
+--------------------------------------------------
+Summary
+--------------------------------------------------
+This release addresses all of the concrete QA issues you listed:
+- Signup: multiple accounts per email/phone + spinner fix.
+- Dashboard: direct referrals list added.
+- Wallets: career-level wallet behavior, safe wallet exchange rules, and Referral/Binary withdrawals.
+- Career levels: clearer left/right target visualization.
+- Profile vs dashboard: unified, working payment info updates.
+- Trees: admin tree loading fixed; user/admin tree UX reverted to the previously approved state while we plan a better drill-down/search experience.

@@ -587,7 +587,12 @@ export const createWithdrawal = asyncHandler(async (req, res) => {
     throw new AppError("Invalid withdrawal amount", 400);
   }
 
-  if (!walletType || !["roi", "interest", "r&b", "withdrawal", "career_level"].includes(walletType)) {
+  if (
+    !walletType ||
+    !["roi", "interest", "r&b", "withdrawal", "career_level", "referral", "binary"].includes(
+      walletType
+    )
+  ) {
     throw new AppError("Invalid wallet type", 400);
   }
 
@@ -1045,6 +1050,105 @@ export const updateWalletAddress = asyncHandler(async (req, res) => {
 });
 
 /**
+ * Update user profile (basic info + payment info)
+ * PUT /api/v1/user/profile
+ */
+export const updateUserProfile = asyncHandler(async (req, res) => {
+  const userId = (req as any).user?.id;
+  if (!userId) {
+    throw new AppError("User not authenticated", 401);
+  }
+
+  const { name, email, phone, country, walletAddress, bankAccount } = req.body as {
+    name?: string;
+    email?: string;
+    phone?: string;
+    country?: string;
+    walletAddress?: string;
+    bankAccount?: {
+      accountNumber?: string;
+      bankName?: string;
+      ifscCode?: string;
+      accountHolderName?: string;
+    };
+  };
+
+  const updateData: any = {};
+
+  if (typeof name === "string" && name.trim().length > 0) {
+    updateData.name = name.trim();
+  }
+
+  if (email !== undefined) {
+    if (email) {
+      const emailRegex = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+      if (!emailRegex.test(email)) {
+        throw new AppError("Invalid email format", 400);
+      }
+      // NOTE: We intentionally do NOT enforce uniqueness on email anymore.
+      // Multiple user accounts can share the same email address.
+      updateData.email = email.toLowerCase();
+    } else {
+      // Allow clearing email
+      updateData.email = undefined;
+    }
+  }
+
+  if (phone !== undefined) {
+    // Basic phone validation (optional)
+    if (phone && !/^[0-9+\-\s]+$/.test(phone)) {
+      throw new AppError("Invalid phone number format", 400);
+    }
+    // NOTE: We intentionally do NOT enforce uniqueness on phone anymore.
+    // Multiple user accounts can share the same phone number.
+    updateData.phone = phone;
+  }
+
+  if (typeof country === "string" && country.trim().length > 0) {
+    updateData.country = country.trim();
+  }
+
+  if (walletAddress !== undefined) {
+    updateData.walletAddress = walletAddress;
+  }
+
+  if (bankAccount !== undefined) {
+    updateData.bankAccount = {
+      accountNumber: bankAccount.accountNumber || "",
+      bankName: bankAccount.bankName || "",
+      ifscCode: bankAccount.ifscCode || "",
+      accountHolderName: bankAccount.accountHolderName || "",
+    };
+  }
+
+  const user = await User.findByIdAndUpdate(userId, updateData, { new: true });
+
+  if (!user) {
+    throw new AppError("User not found", 404);
+  }
+
+  const response = res as any;
+  response.status(200).json({
+    status: "success",
+    data: {
+      user: {
+        id: user._id,
+        userId: user.userId,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        country: user.country,
+        walletAddress: user.walletAddress,
+        bankAccount: user.bankAccount,
+        status: user.status,
+        referrer: user.referrer,
+        position: user.position,
+      },
+    },
+  });
+});
+
+/**
  * Get user referral links
  * GET /api/v1/user/referral-links
  */
@@ -1075,6 +1179,43 @@ export const getUserReferralLinks = asyncHandler(async (req, res) => {
 });
 
 /**
+ * Get user's direct referrals (level 1 only)
+ * GET /api/v1/user/direct-referrals
+ */
+export const getUserDirectReferrals = asyncHandler(async (req, res) => {
+  const userId = (req as any).user?.id;
+  if (!userId) {
+    throw new AppError("User not authenticated", 401);
+  }
+
+  // Find all users whose referrer is the current user
+  const referrals = await User.find({ referrer: userId })
+    .select("userId name email phone status createdAt position country")
+    .lean();
+
+  const formatted = referrals.map((ref) => ({
+    id: ref._id,
+    userId: ref.userId,
+    name: ref.name,
+    email: ref.email,
+    phone: ref.phone,
+    status: ref.status,
+    position: ref.position,
+    country: ref.country,
+    joinedAt: ref.createdAt,
+  }));
+
+  const response = res as any;
+  response.status(200).json({
+    status: "success",
+    data: {
+      referrals: formatted,
+      count: formatted.length,
+    },
+  });
+});
+
+/**
  * Exchange funds between wallets
  * POST /api/v1/user/wallet-exchange
  */
@@ -1094,19 +1235,83 @@ export const exchangeWalletFunds = asyncHandler(async (req, res) => {
     throw new AppError("Amount must be greater than zero", 400);
   }
 
-  // Validate wallet types
+  // CRITICAL: Enforce wallet exchange restrictions
+  // Users can exchange FROM: referral, binary, career_level, or roi wallets
+  // Career Level and ROI wallets can only be exchanged once per day
+  const allowedFromWallets = [
+    WalletType.REFERRAL,
+    WalletType.BINARY,
+    WalletType.CAREER_LEVEL,
+    WalletType.ROI,
+  ];
+  if (!allowedFromWallets.includes(fromWalletType)) {
+    throw new AppError(
+      `Exchange is only allowed from Referral, Binary, Career Level, or ROI wallets. You cannot exchange from ${fromWalletType} wallet.`,
+      400
+    );
+  }
+
+  // Users can ONLY exchange TO: withdrawal wallet
+  if (toWalletType !== WalletType.WITHDRAWAL) {
+    throw new AppError(
+      `Exchange is only allowed to Withdrawal wallet. You cannot exchange to ${toWalletType} wallet.`,
+      400
+    );
+  }
+
+  // Validate wallet types exist in enum
   const validWalletTypes = Object.values(WalletType);
   if (!validWalletTypes.includes(fromWalletType) || !validWalletTypes.includes(toWalletType)) {
     throw new AppError("Invalid wallet type", 400);
   }
 
-  // Perform exchange (default exchange rate is 1:1)
+  // Check daily limit for Career Level and ROI wallets (once per day)
+  if (fromWalletType === WalletType.CAREER_LEVEL || fromWalletType === WalletType.ROI) {
+    // Get the wallet ID for the source wallet type
+    const sourceWallet = await Wallet.findOne({
+      user: userId,
+      type: fromWalletType,
+    });
+
+    if (sourceWallet) {
+      // Check if user has already exchanged from this wallet today
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+
+      const existingExchangeToday = await WalletTransaction.findOne({
+        user: userId,
+        wallet: sourceWallet._id,
+        type: "debit",
+        "meta.type": "wallet_exchange",
+        createdAt: {
+          $gte: today,
+          $lt: tomorrow,
+        },
+      });
+
+      if (existingExchangeToday) {
+        const walletName =
+          fromWalletType === WalletType.CAREER_LEVEL ? "Career Level" : "ROI";
+        throw new AppError(
+          `You have already exchanged from ${walletName} wallet today. You can only exchange once per day from this wallet.`,
+          400
+        );
+      }
+    }
+  }
+
+  // Exchange rate is fixed at 1.0 (ignore user-provided exchangeRate for security)
+  const fixedExchangeRate = 1.0;
+
+  // Perform exchange with fixed 1:1 rate
   const result = await exchangeWallets(
     userId,
     fromWalletType,
     toWalletType,
     amount,
-    exchangeRate || 1.0
+    fixedExchangeRate
   );
 
   const response = res as any;
