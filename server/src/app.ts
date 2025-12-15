@@ -14,7 +14,9 @@ app.use(cors({
     'http://localhost:3001',
     'http://localhost:5000',
     'http://localhost:5001',
-    'http://13.48.131.244:3000'
+    'http://13.48.131.244:3000',
+    'http://199.188.204.202:3000',
+    'http://199.188.204.202'
   ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
