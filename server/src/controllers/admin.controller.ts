@@ -361,7 +361,7 @@ export const getAllUsers = asyncHandler(async (req, res) => {
     // Format users with additional data
     const formattedUsers = users.map((user) => {
       const totalInvestment = investmentMap.get(user._id.toString()) || 0;
-      const baseUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+      const baseUrl = process.env.CLIENT_URL || process.env.FRONTEND_URL || "http://localhost:3000";
       const treeLink = `${baseUrl}/tree?userId=${user.userId}`;
 
       return {

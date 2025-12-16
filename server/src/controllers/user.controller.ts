@@ -1322,7 +1322,7 @@ export const getUserReferralLinks = asyncHandler(async (req, res) => {
     throw new AppError("User not found", 404);
   }
 
-  const baseUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+  const baseUrl = process.env.CLIENT_URL || process.env.FRONTEND_URL || "http://localhost:3000";
   const leftLink = `${baseUrl}/signup?referrer=${user.userId}&position=left`;
   const rightLink = `${baseUrl}/signup?referrer=${user.userId}&position=right`;
 
