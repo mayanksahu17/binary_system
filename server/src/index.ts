@@ -44,12 +44,13 @@ connectdb()
         // Setup cron jobs
         setupROICron();
         
-        app.listen(PORT as number,'0.0.0.0' , () => {
+        const server = app.listen(PORT as number,'0.0.0.0' , () => {
             console.log(`🚀 Server is running at port: ${PORT}`);
-            app.on("error", (error) => {
-                console.log("❌ Error:", error); 
-                throw error;
-            });
+        });
+        
+        server.on("error", (error) => {
+            console.log("❌ Server Error:", error); 
+            throw error;
         });
     })
     .catch((error) => {

@@ -73,7 +73,7 @@ export async function checkAndAwardCareerLevels(userId: Types.ObjectId): Promise
     // Thresholds are cumulative - each level needs its threshold amount of total business
     // Loop through all active levels and check if totalBusinessVolume >= threshold
     
-    let nextLevelToCheck: ICareerLevel | null = null;
+    let nextLevelToCheck: { _id: any; name: string; investmentThreshold: any } | null = null;
     let levelsCompleted = 0;
     
     // Find all levels that should be completed based on total business volume
@@ -134,7 +134,7 @@ export async function checkAndAwardCareerLevels(userId: Types.ObjectId): Promise
     const updatedCompletedLevelIds = userProgress.completedLevels.map((cl) => cl.levelId.toString());
     for (const level of activeLevels) {
       if (!updatedCompletedLevelIds.includes(level._id.toString())) {
-        nextLevelToCheck = level;
+        nextLevelToCheck = level as unknown as { _id: any; name: string; investmentThreshold: any };
         break;
       }
     }
