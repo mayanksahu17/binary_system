@@ -142,7 +142,9 @@ export default function DashboardPage() {
         setDirectReferrals(directReferralsRes.data.referrals || []);
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to load dashboard data');
+      const errorMsg = err.message || 'Failed to load dashboard data';
+      setError(errorMsg);
+      toast.error(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -152,7 +154,6 @@ export default function DashboardPage() {
     const names: { [key: string]: string } = {
       withdrawal: 'Withdrawal',
       roi: 'ROI',
-      referral_binary: 'Referral Binary',
       interest: 'Interest',
       referral: 'Referral',
       binary: 'Binary Bonus',
@@ -497,12 +498,14 @@ export default function DashboardPage() {
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-bold text-gray-900">Payment Information</h2>
-              <button
-                onClick={() => setShowWalletModal(true)}
-                className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700"
-              >
-                {walletAddress ? 'Update' : 'Setup'} Payment Info
-              </button>
+              {!walletAddress && (
+                <button
+                  onClick={() => setShowWalletModal(true)}
+                  className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700"
+                >
+                  Setup Payment Info
+                </button>
+              )}
             </div>
               <div>
                 <h3 className="text-sm font-medium text-gray-700 mb-2">Crypto Wallet Address</h3>
@@ -510,11 +513,17 @@ export default function DashboardPage() {
                   <div className="p-3 bg-green-50 border border-green-200 rounded-md">
                     <p className="text-sm font-mono text-gray-800 break-all">{walletAddress}</p>
                     <p className="text-xs text-green-600 mt-1">✓ Wallet address configured</p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Wallet address cannot be changed. Contact admin support if you need to update it.
+                    </p>
                   </div>
                 ) : (
                   <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md">
                     <p className="text-sm text-yellow-800">No wallet address set</p>
                     <p className="text-xs text-yellow-600 mt-1">Required for withdrawals</p>
+                    <p className="text-xs text-gray-600 mt-2">
+                      Supported: Bitcoin (BTC), USDT (TRC20/ERC20), USDC, Ethereum (ETH), and other cryptocurrencies
+                    </p>
                   </div>
                 )}
               </div>
@@ -538,6 +547,12 @@ export default function DashboardPage() {
                 <p className="text-sm text-gray-600 mb-4">
                   Set at least one payment method (wallet address or bank account) to enable withdrawals.
                 </p>
+                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                  <p className="text-sm font-medium text-blue-900 mb-1">Supported Crypto Addresses:</p>
+                  <p className="text-xs text-blue-700">
+                    You can use addresses from: <strong>Bitcoin (BTC)</strong>, <strong>USDT (TRC20/ERC20)</strong>, <strong>USDC</strong>, <strong>Ethereum (ETH)</strong>, or other supported cryptocurrencies.
+                  </p>
+                </div>
                 
                 <div className="space-y-6">
                   {/* Crypto Wallet Address Section */}
@@ -545,18 +560,32 @@ export default function DashboardPage() {
                     <h4 className="text-md font-medium text-gray-800 mb-3">Crypto Wallet Address</h4>
                     <div className="mb-4">
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Wallet Address
+                        Wallet Address {walletAddress && <span className="text-gray-500">(Cannot be changed)</span>}
                       </label>
-                      <input
-                        type="text"
-                        value={walletAddress}
-                        onChange={(e) => setWalletAddress(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                        placeholder="Enter your crypto wallet address (e.g., Bitcoin, Ethereum, etc.)"
-                      />
-                      <p className="mt-1 text-xs text-gray-500">
-                        Enter your cryptocurrency wallet address for crypto withdrawals
-                      </p>
+                      {walletAddress ? (
+                        <div className="p-3 bg-gray-50 border border-gray-300 rounded-md">
+                          <p className="text-sm font-mono text-gray-800 break-all">{walletAddress}</p>
+                          <p className="mt-1 text-xs text-red-600">
+                            ⚠️ Wallet address cannot be changed once set. Contact admin support if you need to update it.
+                          </p>
+                        </div>
+                      ) : (
+                        <>
+                          <input
+                            type="text"
+                            value={walletAddress}
+                            onChange={(e) => setWalletAddress(e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 font-mono text-sm"
+                            placeholder="Enter your Bitcoin, USDT, USDC, Ethereum, or other crypto wallet address"
+                          />
+                          <p className="mt-1 text-xs text-gray-500">
+                            Enter your cryptocurrency wallet address (Bitcoin, USDT, USDC, Ethereum, etc.) for crypto withdrawals. This can only be set once.
+                          </p>
+                          <p className="mt-1 text-xs text-gray-600 font-medium">
+                            💡 Make sure to use the correct address format for your chosen cryptocurrency (e.g., Bitcoin addresses start with 1, 3, or bc1; USDT TRC20 addresses start with T).
+                          </p>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -573,7 +602,9 @@ export default function DashboardPage() {
                   <button
                     onClick={async () => {
                       if (!walletAddress) {
-                        setError('Please enter a crypto wallet address');
+                        const errorMsg = 'Please enter a crypto wallet address';
+                        setError(errorMsg);
+                        toast.error(errorMsg);
                         return;
                       }
                       try {
@@ -584,7 +615,9 @@ export default function DashboardPage() {
                         toast.success('Payment information updated successfully!');
                         await fetchDashboardData();
                       } catch (err: any) {
-                        setError(err.message || 'Failed to update payment information');
+                        const errorMsg = err.message || 'Failed to update payment information';
+                        setError(errorMsg);
+                        toast.error(errorMsg);
                       }
                     }}
                     className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700"

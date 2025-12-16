@@ -65,7 +65,9 @@ export default function VouchersPage() {
         setVouchers(response.data.vouchers || []);
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to load vouchers');
+      const errorMsg = err.message || 'Failed to load vouchers';
+      setError(errorMsg);
+      toast.error(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -73,8 +75,30 @@ export default function VouchersPage() {
 
   const handleCreateVoucher = async () => {
     if (!createAmount || parseFloat(createAmount) <= 0) {
-      setError('Please enter a valid amount');
+      const errorMsg = 'Please enter a valid amount';
+      setError(errorMsg);
+      toast.error(errorMsg);
       return;
+    }
+
+    if (!fromWalletType) {
+      const errorMsg = 'Please select a wallet to create the voucher from';
+      setError(errorMsg);
+      toast.error(errorMsg);
+      return;
+    }
+
+    // Check if selected wallet has sufficient balance
+    const selectedWallet = wallets.find(w => w.type === fromWalletType);
+    if (selectedWallet) {
+      const availableBalance = parseFloat(selectedWallet.balance) - parseFloat(selectedWallet.reserved || '0');
+      const requestedAmount = parseFloat(createAmount);
+      if (requestedAmount > availableBalance) {
+        const errorMsg = `Insufficient balance. Available: $${availableBalance.toFixed(2)}`;
+        setError(errorMsg);
+        toast.error(errorMsg);
+        return;
+      }
     }
 
     try {
@@ -82,19 +106,22 @@ export default function VouchersPage() {
       setError('');
       const response = await api.createVoucher({
         amount: parseFloat(createAmount),
-        fromWalletType: fromWalletType || undefined,
+        fromWalletType: fromWalletType,
       });
 
       if (response.data) {
         setShowCreateModal(false);
         setCreateAmount('');
         setFromWalletType('');
+        setError('');
         await fetchVouchers();
         await fetchWallets();
         toast.success('Voucher created successfully!');
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to create voucher');
+      const errorMsg = err.message || 'Failed to create voucher';
+      setError(errorMsg);
+      toast.error(errorMsg);
     } finally {
       setCreating(false);
     }
@@ -316,19 +343,39 @@ export default function VouchersPage() {
                 </div>
                 <div className="mb-4">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    From Wallet (Optional)
+                    From Wallet (Required)
                   </label>
                   <select
                     value={fromWalletType}
                     onChange={(e) => setFromWalletType(e.target.value)}
+                    required
                     className="w-full px-3 py-2 border border-gray-300 rounded-md text-black bg-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                   >
-                    <option value="">Create without wallet (Free voucher)</option>
-                    {wallets.map((wallet) => (
-                      <option key={wallet.type} value={wallet.type}>
-                        {wallet.type} - ${parseFloat(wallet.balance).toFixed(2)}
-                      </option>
-                    ))}
+                    <option value="">Select a wallet</option>
+                    {wallets
+                      .filter((wallet) => {
+                        // Filter out referral_binary (already removed from system)
+                        // Filter out investment and token wallets (not suitable for vouchers)
+                        // Only show wallets that can be used for vouchers
+                        const allowedTypes = ['roi', 'interest', 'referral', 'binary', 'withdrawal', 'career_level'];
+                        return allowedTypes.includes(wallet.type);
+                      })
+                      .map((wallet) => {
+                        // Format wallet type name for display
+                        const walletNames: { [key: string]: string } = {
+                          roi: 'ROI Wallet',
+                          interest: 'Interest Wallet',
+                          referral: 'Referral Wallet',
+                          binary: 'Binary Wallet',
+                          withdrawal: 'Withdrawal Wallet',
+                          career_level: 'Career Level Wallet',
+                        };
+                        return (
+                          <option key={wallet.type} value={wallet.type}>
+                            {walletNames[wallet.type] || wallet.type} - ${parseFloat(wallet.balance).toFixed(2)}
+                          </option>
+                        );
+                      })}
                   </select>
                 </div>
                 <div className="flex justify-end space-x-3">
@@ -337,6 +384,7 @@ export default function VouchersPage() {
                       setShowCreateModal(false);
                       setCreateAmount('');
                       setFromWalletType('');
+                      setError('');
                     }}
                     className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300"
                   >

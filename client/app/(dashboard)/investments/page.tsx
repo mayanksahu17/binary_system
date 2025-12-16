@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { api } from '@/lib/api';
 import { useRouter } from 'next/navigation';
+import toast from 'react-hot-toast';
 
 interface Investment {
   id: string;
@@ -49,7 +50,9 @@ export default function InvestmentsPage() {
         setInvestments(response.data.investments);
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to load investments');
+      const errorMsg = err.message || 'Failed to load investments';
+      setError(errorMsg);
+      toast.error(errorMsg);
     } finally {
       setLoading(false);
     }

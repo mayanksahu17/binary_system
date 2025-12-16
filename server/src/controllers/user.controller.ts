@@ -607,7 +607,7 @@ export const createWithdrawal = asyncHandler(async (req, res) => {
 
   if (
     !walletType ||
-    !["roi", "interest", "r&b", "withdrawal", "career_level", "referral", "binary"].includes(
+    !["roi", "interest", "withdrawal", "career_level", "referral", "binary"].includes(
       walletType
     )
   ) {
@@ -1029,6 +1029,7 @@ export const createVoucher = asyncHandler(async (req, res) => {
 /**
  * Update user wallet address
  * PUT /api/v1/user/wallet-address
+ * Users can only set wallet address once. After that, only admins can update it.
  */
 export const updateWalletAddress = asyncHandler(async (req, res) => {
   const userId = (req as any).user?.id;
@@ -1037,6 +1038,25 @@ export const updateWalletAddress = asyncHandler(async (req, res) => {
   }
 
   const { walletAddress, bankAccount } = req.body;
+
+  // Get current user to check if wallet address already exists
+  const currentUser = await User.findById(userId);
+  if (!currentUser) {
+    throw new AppError("User not found", 404);
+  }
+
+  // Check if user is trying to update an existing wallet address
+  // Only allow if it's an admin request (check if req.admin exists or user is CROWN-000000)
+  const isAdminRequest = (req as any).admin !== undefined || currentUser.userId === "CROWN-000000";
+  
+  if (walletAddress && currentUser.walletAddress && currentUser.walletAddress.trim().length > 0) {
+    if (!isAdminRequest) {
+      throw new AppError(
+        "Wallet address cannot be changed once set. Please contact admin support to update your wallet address.",
+        403
+      );
+    }
+  }
 
   const updateData: any = {};
   if (walletAddress) {
@@ -1126,8 +1146,31 @@ export const updateUserProfile = asyncHandler(async (req, res) => {
     updateData.country = country.trim();
   }
 
+  // Prevent users from updating wallet address through profile update
+  // Wallet address can only be set once via wallet-address endpoint, then only admins can change it
   if (walletAddress !== undefined) {
-    updateData.walletAddress = walletAddress;
+    // Get current user to check if wallet address already exists
+    const currentUser = await User.findById(userId);
+    if (!currentUser) {
+      throw new AppError("User not found", 404);
+    }
+
+    // Check if user is trying to update an existing wallet address
+    const isAdminRequest = (req as any).admin !== undefined || currentUser.userId === "CROWN-000000";
+    
+    if (currentUser.walletAddress && currentUser.walletAddress.trim().length > 0) {
+      if (!isAdminRequest) {
+        throw new AppError(
+          "Wallet address cannot be changed once set. Please contact admin support to update your wallet address.",
+          403
+        );
+      }
+    }
+    
+    // Only allow setting if it doesn't exist yet, or if it's an admin request
+    if (!currentUser.walletAddress || isAdminRequest) {
+      updateData.walletAddress = walletAddress;
+    }
   }
 
   if (bankAccount !== undefined) {

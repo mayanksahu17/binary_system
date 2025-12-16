@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, useMemo, memo } from 'react';
+import { useEffect, useState, useCallback, useMemo, memo, useRef } from 'react';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import ReactFlow, {
   Node,
@@ -12,6 +12,7 @@ import ReactFlow, {
   useEdgesState,
   Handle,
   Position,
+  ReactFlowInstance,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 
@@ -196,6 +197,10 @@ export default function TreePage() {
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [maxDepth, setMaxDepth] = useState<number>(5); // Limit initial depth for performance
   const [showAllNodes, setShowAllNodes] = useState(true); // Show all nodes by default
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [highlightedNodeId, setHighlightedNodeId] = useState<string | null>(null);
+  const reactFlowInstance = useRef<ReactFlowInstance | null>(null);
 
   // Fetch tree data
   useEffect(() => {
@@ -425,6 +430,47 @@ export default function TreePage() {
     setEdges(computedEdges);
   }, [computedNodes, computedEdges, setNodes, setEdges]);
 
+  // Handle search functionality
+  const handleSearch = useCallback((searchValue: string) => {
+    if (!searchValue.trim() || !treeData || !treeMap) {
+      setSearchError(null);
+      setHighlightedNodeId(null);
+      return;
+    }
+
+    const searchLower = searchValue.trim().toLowerCase();
+    let foundUser: TreeUser | null = null;
+
+    // Search by userId (exact or partial match)
+    for (const user of treeData.tree) {
+      if (user.userId?.toLowerCase().includes(searchLower) || 
+          user.name?.toLowerCase().includes(searchLower) ||
+          user.email?.toLowerCase().includes(searchLower)) {
+        foundUser = user;
+        break;
+      }
+    }
+
+    if (foundUser) {
+      setSearchError(null);
+      setHighlightedNodeId(foundUser.id);
+      
+      // Find the node and navigate to it
+      const targetNode = computedNodes.find(n => n.id === foundUser!.id);
+      if (targetNode && reactFlowInstance.current) {
+        const { x, y } = targetNode.position;
+        reactFlowInstance.current.setCenter(x, y, { zoom: 1.2, duration: 800 });
+      }
+    } else {
+      setSearchError(`User "${searchValue}" not found in tree`);
+      setHighlightedNodeId(null);
+    }
+  }, [treeData, treeMap, computedNodes]);
+
+  const onInit = useCallback((instance: ReactFlowInstance) => {
+    reactFlowInstance.current = instance;
+  }, []);
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -444,64 +490,129 @@ export default function TreePage() {
   return (
     <ProtectedRoute requireUser>
       <div className="h-screen w-screen flex flex-col bg-gradient-to-br from-purple-500 via-purple-600 to-purple-700">
-      {/* Header */}
-      <div className="bg-white shadow-lg p-4 z-10">
-        <h1 className="text-3xl font-bold text-center text-gray-800">Binary Tree</h1>
-        {treeData?.statistics && (
-          <div className="flex justify-center gap-6 mt-4">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-purple-600">{treeData.statistics.totalUsers}</div>
-              <div className="text-sm text-gray-600">Total Users</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-green-600">{treeData.statistics.activeUsers}</div>
-              <div className="text-sm text-gray-600">Active Users</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-blue-600">{treeData.statistics.totalDownlines}</div>
-              <div className="text-sm text-gray-600">Total Downlines</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-orange-600">{nodes.length}</div>
-              <div className="text-sm text-gray-600">Nodes Rendered</div>
-            </div>
-          </div>
-        )}
-        {/* Performance Controls */}
-        <div className="flex justify-center gap-4 mt-4">
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={showAllNodes}
-              onChange={(e) => setShowAllNodes(e.target.checked)}
-              className="w-4 h-4"
-            />
-            <span className="text-sm text-gray-700">Show All Nodes ({treeData?.statistics.totalUsers || 0})</span>
-          </label>
-          {!showAllNodes && (
-            <div className="flex items-center gap-2">
-              <label className="text-sm text-gray-700">Max Depth:</label>
-              <input
-                type="number"
-                min="1"
-                max="20"
-                value={maxDepth}
-                onChange={(e) => setMaxDepth(Math.max(1, Math.min(20, parseInt(e.target.value) || 10)))}
-                className="w-20 px-2 py-1 border border-gray-300 rounded text-sm"
-              />
+      {/* Header - Compact */}
+      <div className="bg-white shadow-lg p-2 z-10">
+        <div className="flex items-center justify-between gap-4 mb-2">
+          <h1 className="text-xl font-bold text-gray-800">Binary Tree</h1>
+          {/* Statistics - Compact Horizontal */}
+          {treeData?.statistics && (
+            <div className="flex gap-4 items-center">
+              <div className="text-center">
+                <div className="text-lg font-bold text-purple-600">{treeData.statistics.totalUsers}</div>
+                <div className="text-xs text-gray-600">Total</div>
+              </div>
+              <div className="text-center">
+                <div className="text-lg font-bold text-green-600">{treeData.statistics.activeUsers}</div>
+                <div className="text-xs text-gray-600">Active</div>
+              </div>
+              <div className="text-center">
+                <div className="text-lg font-bold text-blue-600">{treeData.statistics.totalDownlines}</div>
+                <div className="text-xs text-gray-600">Downlines</div>
+              </div>
+              <div className="text-center">
+                <div className="text-lg font-bold text-orange-600">{nodes.length}</div>
+                <div className="text-xs text-gray-600">Rendered</div>
+              </div>
             </div>
           )}
         </div>
+        {/* Controls and Search - Compact Row */}
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* Performance Controls */}
+          <div className="flex items-center gap-3">
+            <label className="flex items-center gap-1.5">
+              <input
+                type="checkbox"
+                checked={showAllNodes}
+                onChange={(e) => setShowAllNodes(e.target.checked)}
+                className="w-3.5 h-3.5"
+              />
+              <span className="text-xs text-gray-700">Show All ({treeData?.statistics.totalUsers || 0})</span>
+            </label>
+            {!showAllNodes && (
+              <div className="flex items-center gap-1.5">
+                <label className="text-xs text-gray-700">Depth:</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="20"
+                  value={maxDepth}
+                  onChange={(e) => setMaxDepth(Math.max(1, Math.min(20, parseInt(e.target.value) || 10)))}
+                  className="w-16 px-1.5 py-0.5 border border-gray-300 rounded text-xs"
+                />
+              </div>
+            )}
+          </div>
+          {/* Search Bar - Compact */}
+          <div className="flex gap-1.5 items-center flex-1 min-w-[300px] max-w-md">
+            <div className="flex-1 relative">
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setSearchError(null);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleSearch(searchTerm);
+                  }
+                }}
+                placeholder="Search by User ID, Name, or Email..."
+                className="w-full px-3 py-1.5 pl-8 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+              />
+              <svg
+                className="absolute left-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+            <button
+              onClick={() => handleSearch(searchTerm)}
+              className="px-4 py-1.5 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+            >
+              Search
+            </button>
+            {searchTerm && (
+              <button
+                onClick={() => {
+                  setSearchTerm('');
+                  setSearchError(null);
+                  setHighlightedNodeId(null);
+                }}
+                className="px-3 py-1.5 text-sm bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        </div>
+        {searchError && (
+          <div className="text-red-600 text-xs bg-red-50 p-1.5 rounded mt-1.5">
+            {searchError}
+          </div>
+        )}
       </div>
 
       {/* React Flow Canvas */}
       <div className="flex-1" style={{ position: 'relative', overflow: 'visible' }}>
         <ReactFlow
-          nodes={nodes}
+          nodes={nodes.map(node => ({
+            ...node,
+            style: {
+              ...node.style,
+              border: highlightedNodeId === node.id ? '4px solid #fbbf24' : undefined,
+              boxShadow: highlightedNodeId === node.id ? '0 0 20px rgba(251, 191, 36, 0.8)' : undefined,
+            },
+          }))}
           edges={edges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           nodeTypes={nodeTypes}
+          onInit={onInit}
           fitView
           className="bg-gray-50"
           minZoom={0.1}

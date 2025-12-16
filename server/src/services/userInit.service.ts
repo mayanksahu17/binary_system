@@ -189,7 +189,6 @@ export async function initializeWallets(userId: Types.ObjectId) {
     const defaultWallets = [
       { type: WalletType.WITHDRAWAL, balance: "0", reserved: "0", currency: "USD" },
       { type: WalletType.ROI, balance: "0", reserved: "0", currency: "USD" },
-      { type: WalletType.REFERRAL_BINARY, balance: "0", reserved: "0", currency: "USD" },
       { type: WalletType.INTEREST, balance: "0", reserved: "0", currency: "USD" },
       { type: WalletType.REFERRAL, balance: "0", reserved: "0", currency: "USD" },
       { type: WalletType.BINARY, balance: "0", reserved: "0", currency: "USD" },

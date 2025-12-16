@@ -84,7 +84,9 @@ export default function ProfilePage() {
     setSaving(true);
 
     try {
-      await api.updateProfile(formData);
+      // Remove walletAddress from update - it can only be set once and changed by admin
+      const { walletAddress, ...updateData } = formData;
+      await api.updateProfile(updateData);
       toast.success('Profile updated successfully!');
       await refreshAuth();
     } catch (err: any) {
@@ -184,24 +186,23 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          {/* Wallet Information */}
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Wallet Information</h2>
+          {/* Wallet Information - Read Only */}
+          {formData.walletAddress && (
             <div>
-              <label htmlFor="walletAddress" className="block text-sm font-medium text-gray-700 mb-2">
-                Crypto Wallet Address
-              </label>
-              <input
-                type="text"
-                id="walletAddress"
-                name="walletAddress"
-                value={formData.walletAddress}
-                onChange={handleChange}
-                placeholder="Enter your crypto wallet address"
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 font-mono text-sm"
-              />
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Wallet Information</h2>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Crypto Wallet Address
+                </label>
+                <div className="p-3 bg-gray-50 border border-gray-300 rounded-md">
+                  <p className="text-sm font-mono text-gray-800 break-all">{formData.walletAddress}</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Wallet address cannot be changed. Contact admin support if you need to update it.
+                  </p>
+                </div>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Submit Button */}
           <div className="flex justify-end pt-4 border-t border-gray-200">

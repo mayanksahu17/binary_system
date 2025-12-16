@@ -4,7 +4,6 @@ import { Schema } from "mongoose";
 export enum WalletType {
   WITHDRAWAL = "withdrawal",
   ROI = "roi",
-  REFERRAL_BINARY = "referral_binary",
   INTEREST = "interest",
   REFERRAL = "referral",
   BINARY = "binary",

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
+import toast from 'react-hot-toast';
 
 interface Wallet {
   type: string;
@@ -14,7 +15,6 @@ interface Wallet {
 const WALLET_TYPE_LABELS: Record<string, string> = {
   withdrawal: 'Withdrawal Wallet',
   roi: 'ROI Wallet',
-  referral_binary: 'Referral & Binary Wallet',
   interest: 'Interest Wallet',
   referral: 'Referral Wallet',
   binary: 'Binary Wallet',
@@ -62,7 +62,9 @@ export default function WalletExchangePage() {
         await checkDailyLimitStatus(response.data.wallets || []);
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to fetch wallets');
+      const errorMsg = err.message || 'Failed to fetch wallets';
+      setError(errorMsg);
+      toast.error(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -125,51 +127,67 @@ export default function WalletExchangePage() {
     setSuccess('');
     
     if (!fromWalletType || !toWalletType || !amount) {
-      setError('Please fill in all fields');
+      const errorMsg = 'Please fill in all fields';
+      setError(errorMsg);
+      toast.error(errorMsg);
       return;
     }
 
     // Validate: Only allow exchange FROM referral, binary, career_level, or roi wallets
     const allowedFromWallets = ['referral', 'binary', 'career_level', 'roi'];
     if (!allowedFromWallets.includes(fromWalletType)) {
-      setError('You can only exchange from Referral, Binary, Career Level, or ROI wallets');
+      const errorMsg = 'You can only exchange from Referral, Binary, Career Level, or ROI wallets';
+      setError(errorMsg);
+      toast.error(errorMsg);
       return;
     }
 
     // Check daily limit for Career Level and ROI wallets
     if ((fromWalletType === 'career_level' || fromWalletType === 'roi') && dailyLimitStatus[fromWalletType]) {
       const walletName = fromWalletType === 'career_level' ? 'Career Level' : 'ROI';
-      setError(`You have already exchanged from ${walletName} wallet today. You can only exchange once per day from this wallet.`);
+      const errorMsg = `You have already exchanged from ${walletName} wallet today. You can only exchange once per day from this wallet.`;
+      setError(errorMsg);
+      toast.error(errorMsg);
       return;
     }
 
     // Validate: Only allow exchange TO withdrawal wallet
     if (toWalletType !== 'withdrawal') {
-      setError('You can only exchange to Withdrawal wallet');
+      const errorMsg = 'You can only exchange to Withdrawal wallet';
+      setError(errorMsg);
+      toast.error(errorMsg);
       return;
     }
 
     if (fromWalletType === toWalletType) {
-      setError('Source and destination wallets cannot be the same');
+      const errorMsg = 'Source and destination wallets cannot be the same';
+      setError(errorMsg);
+      toast.error(errorMsg);
       return;
     }
 
     const exchangeAmount = parseFloat(amount);
     if (isNaN(exchangeAmount) || exchangeAmount <= 0) {
-      setError('Please enter a valid amount');
+      const errorMsg = 'Please enter a valid amount';
+      setError(errorMsg);
+      toast.error(errorMsg);
       return;
     }
 
     // Check available balance
     const fromWallet = wallets.find(w => w.type === fromWalletType);
     if (!fromWallet) {
-      setError('Source wallet not found');
+      const errorMsg = 'Source wallet not found';
+      setError(errorMsg);
+      toast.error(errorMsg);
       return;
     }
 
     const availableBalance = fromWallet.balance - fromWallet.reserved;
     if (exchangeAmount > availableBalance) {
-      setError(`Insufficient balance. Available: $${availableBalance.toFixed(2)}`);
+      const errorMsg = `Insufficient balance. Available: $${availableBalance.toFixed(2)}`;
+      setError(errorMsg);
+      toast.error(errorMsg);
       return;
     }
 
@@ -184,10 +202,10 @@ export default function WalletExchangePage() {
       });
 
       if (response.data) {
-        setSuccess(
-          `Successfully exchanged $${exchangeAmount.toFixed(2)} from ${WALLET_TYPE_LABELS[fromWalletType] || fromWalletType} to ${WALLET_TYPE_LABELS[toWalletType] || toWalletType}. ` +
-          `Received: $${response.data.toWallet.amountCredited.toFixed(2)}`
-        );
+        const successMsg = `Successfully exchanged $${exchangeAmount.toFixed(2)} from ${WALLET_TYPE_LABELS[fromWalletType] || fromWalletType} to ${WALLET_TYPE_LABELS[toWalletType] || toWalletType}. ` +
+          `Received: $${response.data.toWallet.amountCredited.toFixed(2)}`;
+        setSuccess(successMsg);
+        toast.success(successMsg);
         // Reset form
         setFromWalletType('');
         setToWalletType('');
@@ -196,7 +214,9 @@ export default function WalletExchangePage() {
         await fetchWallets();
       }
     } catch (err: any) {
-      setError(err.message || 'Exchange failed');
+      const errorMsg = err.message || 'Exchange failed';
+      setError(errorMsg);
+      toast.error(errorMsg);
     } finally {
       setExchanging(false);
     }

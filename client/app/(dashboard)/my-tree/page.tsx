@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, useMemo, memo } from 'react';
+import { useEffect, useState, useCallback, useMemo, memo, useRef } from 'react';
 import ReactFlow, {
   Node,
   Edge,
@@ -11,6 +11,7 @@ import ReactFlow, {
   useEdgesState,
   Handle,
   Position,
+  ReactFlowInstance,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { api } from '@/lib/api';
@@ -180,6 +181,10 @@ export default function MyTreePage() {
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [maxDepth, setMaxDepth] = useState<number>(5);
   const [showAllNodes, setShowAllNodes] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [highlightedNodeId, setHighlightedNodeId] = useState<string | null>(null);
+  const reactFlowInstance = useRef<ReactFlowInstance | null>(null);
 
   useEffect(() => {
     const fetchTreeData = async () => {
@@ -361,6 +366,47 @@ export default function MyTreePage() {
     setEdges(computedEdges);
   }, [computedNodes, computedEdges, setNodes, setEdges]);
 
+  // Handle search functionality
+  const handleSearch = useCallback((searchValue: string) => {
+    if (!searchValue.trim() || !treeData || !treeMap) {
+      setSearchError(null);
+      setHighlightedNodeId(null);
+      return;
+    }
+
+    const searchLower = searchValue.trim().toLowerCase();
+    let foundUser: TreeUser | null = null;
+
+    // Search by userId (exact or partial match)
+    for (const user of treeData.tree) {
+      if (user.userId?.toLowerCase().includes(searchLower) || 
+          user.name?.toLowerCase().includes(searchLower) ||
+          user.email?.toLowerCase().includes(searchLower)) {
+        foundUser = user;
+        break;
+      }
+    }
+
+    if (foundUser) {
+      setSearchError(null);
+      setHighlightedNodeId(foundUser.id);
+      
+      // Find the node and navigate to it
+      const targetNode = computedNodes.find(n => n.id === foundUser!.id);
+      if (targetNode && reactFlowInstance.current) {
+        const { x, y } = targetNode.position;
+        reactFlowInstance.current.setCenter(x, y, { zoom: 1.2, duration: 800 });
+      }
+    } else {
+      setSearchError(`User "${searchValue}" not found in your tree`);
+      setHighlightedNodeId(null);
+    }
+  }, [treeData, treeMap, computedNodes]);
+
+  const onInit = useCallback((instance: ReactFlowInstance) => {
+    reactFlowInstance.current = instance;
+  }, []);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -378,32 +424,93 @@ export default function MyTreePage() {
   }
 
   return (
-    <div className="w-full h-[calc(100vh-8rem)] flex flex-col bg-gradient-to-br from-purple-500 via-purple-600 to-purple-700 rounded-lg overflow-hidden">
+      <div className="w-full h-[calc(100vh-8rem)] flex flex-col bg-gradient-to-br from-purple-500 via-purple-600 to-purple-700 rounded-lg overflow-hidden">
         <div className="bg-white shadow-lg p-4 z-10">
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-3xl font-bold text-center text-gray-800">My Genealogy</h1>
-              {treeData && (
-                <p className="text-center text-gray-600 mt-1">
-                  Root: {treeData.rootName} ({treeData.rootUserId}) - {treeData.tree.length} total nodes
-                </p>
+          <div className="flex flex-col gap-4">
+            <div className="flex justify-between items-center">
+              <div>
+                <h1 className="text-3xl font-bold text-center text-gray-800">My Genealogy</h1>
+                {treeData && (
+                  <p className="text-center text-gray-600 mt-1">
+                    Root: {treeData.rootName} ({treeData.rootUserId}) - {treeData.tree.length} total nodes
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={() => window.history.back()}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+              >
+                ← Back
+              </button>
+            </div>
+            {/* Search Bar */}
+            <div className="flex gap-2 items-center">
+              <div className="flex-1 relative">
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value);
+                    setSearchError(null);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      handleSearch(searchTerm);
+                    }
+                  }}
+                  placeholder="Search by User ID, Name, or Email..."
+                  className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                />
+                <svg
+                  className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+              <button
+                onClick={() => handleSearch(searchTerm)}
+                className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+              >
+                Search
+              </button>
+              {searchTerm && (
+                <button
+                  onClick={() => {
+                    setSearchTerm('');
+                    setSearchError(null);
+                    setHighlightedNodeId(null);
+                  }}
+                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+                >
+                  Clear
+                </button>
               )}
             </div>
-            <button
-              onClick={() => window.history.back()}
-              className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
-            >
-              ← Back
-            </button>
+            {searchError && (
+              <div className="text-red-600 text-sm bg-red-50 p-2 rounded">
+                {searchError}
+              </div>
+            )}
           </div>
         </div>
         <div className="flex-1" style={{ position: 'relative', overflow: 'visible' }}>
           <ReactFlow
-            nodes={nodes}
+            nodes={nodes.map(node => ({
+              ...node,
+              style: {
+                ...node.style,
+                border: highlightedNodeId === node.id ? '4px solid #fbbf24' : undefined,
+                boxShadow: highlightedNodeId === node.id ? '0 0 20px rgba(251, 191, 36, 0.8)' : undefined,
+              },
+            }))}
             edges={edges}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             nodeTypes={nodeTypes}
+            onInit={onInit}
             fitView
             className="bg-gray-50"
             minZoom={0.1}
