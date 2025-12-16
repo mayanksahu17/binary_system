@@ -1,6 +1,6 @@
 // API utility functions for making requests to the backend
 //13.48.131.244
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001/api/v1';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 
 export interface ApiResponse<T = any> {
   status: 'success' | 'error';
@@ -399,8 +399,18 @@ class ApiClient {
     });
   }
 
-  async getUserDirectReferrals() {
-    return this.request<{ referrals: any[]; count: number }>('/user/direct-referrals', {
+  async getUserDirectReferrals(params?: { page?: number; limit?: number; search?: string; status?: string; position?: string }) {
+    const queryParams = new URLSearchParams();
+    if (params?.page) queryParams.append('page', params.page.toString());
+    if (params?.limit) queryParams.append('limit', params.limit.toString());
+    if (params?.search) queryParams.append('search', params.search);
+    if (params?.status) queryParams.append('status', params.status);
+    if (params?.position) queryParams.append('position', params.position);
+    
+    const queryString = queryParams.toString();
+    const url = `/user/direct-referrals${queryString ? `?${queryString}` : ''}`;
+    
+    return this.request<{ referrals: any[]; pagination: { page: number; limit: number; total: number; pages: number } }>(url, {
       method: 'GET',
     });
   }

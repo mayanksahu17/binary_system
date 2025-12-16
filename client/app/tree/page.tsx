@@ -204,7 +204,7 @@ export default function TreePage() {
         setLoading(true);
         // Use same default as API client: local backend in development,
         // overrideable via NEXT_PUBLIC_API_URL in staging/production.
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001/api/v1';
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
         const response = await fetch(`${apiUrl}/tree/view`);
         if (!response.ok) {
           throw new Error('Failed to fetch tree data');

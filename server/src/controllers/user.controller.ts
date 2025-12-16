@@ -327,6 +327,15 @@ export const getUserBinaryTree = asyncHandler(async (req, res) => {
     throw new AppError("User not authenticated", 401);
   }
 
+  // Get user to fetch referrer information
+  const user = await User.findById(userId)
+    .populate("referrer", "userId name")
+    .lean();
+
+  if (!user) {
+    throw new AppError("User not found", 404);
+  }
+
   const binaryTree = await BinaryTree.findOne({ user: userId })
     .populate("parent", "userId name")
     .populate("leftChild", "userId name")
@@ -342,7 +351,16 @@ export const getUserBinaryTree = asyncHandler(async (req, res) => {
     status: "success",
     data: {
       binaryTree: {
-        parent: binaryTree.parent ? {
+        // Show referrer as parent (the person who referred them)
+        // This is what users expect to see, not the binary tree placement parent
+        parent: user.referrer ? {
+          id: (user.referrer as any)._id,
+          userId: (user.referrer as any).userId,
+          name: (user.referrer as any).name,
+        } : null,
+        // Include treeParent for reference (the actual binary tree placement parent)
+        // This may differ from referrer if referrer's positions were full
+        treeParent: binaryTree.parent ? {
           id: (binaryTree.parent as any)._id,
           userId: (binaryTree.parent as any).userId,
           name: (binaryTree.parent as any).name,
@@ -910,7 +928,7 @@ export const createVoucher = asyncHandler(async (req, res) => {
 
   // Get callback URLs
   const baseUrl = process.env.CLIENT_URL || process.env.FRONTEND_URL || 'http://localhost:3000';
-  const callbackUrl = process.env.NOWPAYMENTS_CALLBACK_URL || `${process.env.API_URL || 'http://localhost:5001'}/api/v1/payment/callback`;
+  const callbackUrl = process.env.NOWPAYMENTS_CALLBACK_URL || `${process.env.API_URL || 'http://localhost:8000'}/api/v1/payment/callback`;
   const successUrl = `${baseUrl}/vouchers/success?orderId=${orderId}`;
   const cancelUrl = `${baseUrl}/vouchers/cancel?orderId=${orderId}`;
 
@@ -1188,9 +1206,44 @@ export const getUserDirectReferrals = asyncHandler(async (req, res) => {
     throw new AppError("User not authenticated", 401);
   }
 
-  // Find all users whose referrer is the current user
-  const referrals = await User.find({ referrer: userId })
+  const { page = 1, limit = 20, search = "", status = "", position = "" } = req.query;
+  const pageNum = parseInt(page as string, 10);
+  const limitNum = parseInt(limit as string, 10);
+  const skip = (pageNum - 1) * limitNum;
+
+  // Build query
+  const query: any = { referrer: userId };
+
+  // Search filter (search in userId, name, email, phone)
+  if (search) {
+    const searchRegex = new RegExp(search as string, "i");
+    query.$or = [
+      { userId: searchRegex },
+      { name: searchRegex },
+      { email: searchRegex },
+      { phone: searchRegex },
+    ];
+  }
+
+  // Status filter
+  if (status) {
+    query.status = status;
+  }
+
+  // Position filter
+  if (position) {
+    query.position = position;
+  }
+
+  // Get total count
+  const total = await User.countDocuments(query);
+
+  // Find users with pagination
+  const referrals = await User.find(query)
     .select("userId name email phone status createdAt position country")
+    .sort({ createdAt: -1 }) // Sort by newest first
+    .skip(skip)
+    .limit(limitNum)
     .lean();
 
   const formatted = referrals.map((ref) => ({
@@ -1210,7 +1263,12 @@ export const getUserDirectReferrals = asyncHandler(async (req, res) => {
     status: "success",
     data: {
       referrals: formatted,
-      count: formatted.length,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        pages: Math.ceil(total / limitNum),
+      },
     },
   });
 });

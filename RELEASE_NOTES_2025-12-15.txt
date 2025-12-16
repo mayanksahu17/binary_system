@@ -195,7 +195,7 @@ Current status (as of this release):
   - No drill-down or search UI is currently active.
 - **Admin Binary Tree (`/tree`)**:
   - Uses `/api/v1/tree/view` and renders the full tree as before.
-  - Fixed a dev-only bug where it was still calling a hard-coded remote IP; it now respects `NEXT_PUBLIC_API_URL` (defaulting to `http://localhost:5001/api/v1` in local dev), so the loading screen no longer hangs.
+  - Fixed a dev-only bug where it was still calling a hard-coded remote IP; it now respects `NEXT_PUBLIC_API_URL` (defaulting to `http://localhost:8000/api/v1` in local dev), so the loading screen no longer hangs.
 
 Future work (not shipped in this release):
 - Revisit drill-down/search design for binary trees with a separate design/UX cycle and explicit sign-off before enabling in production.

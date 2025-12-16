@@ -166,7 +166,7 @@ export const createPayment = asyncHandler(async (req, res) => {
 
   // Get callback URLs from environment
   const baseUrl = process.env.CLIENT_URL || process.env.FRONTEND_URL || 'http://localhost:3000';
-  const callbackUrl = process.env.NOWPAYMENTS_CALLBACK_URL || `${process.env.API_URL || 'http://localhost:5001'}/api/v1/payment/callback`;
+  const callbackUrl = process.env.NOWPAYMENTS_CALLBACK_URL || `${process.env.API_URL || 'http://localhost:8000'}/api/v1/payment/callback`;
   const successUrl = `${baseUrl}/invest/success?orderId=${orderId}`;
   const cancelUrl = `${baseUrl}/invest/cancel?orderId=${orderId}`;
 

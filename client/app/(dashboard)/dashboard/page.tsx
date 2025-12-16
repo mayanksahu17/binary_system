@@ -34,6 +34,11 @@ interface BinaryTreeInfo {
     userId: string;
     name: string;
   } | null;
+  treeParent?: {
+    id: string;
+    userId: string;
+    name: string;
+  } | null; // Optional: actual binary tree placement parent (may differ from referrer)
   leftChild: {
     id: string;
     userId: string;

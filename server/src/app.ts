@@ -13,7 +13,7 @@ app.use(cors({
     'http://localhost:3000',
     'http://localhost:3001',
     'http://localhost:5000',
-    'http://localhost:5001',
+    'http://localhost:8000',
     'http://13.48.131.244:3000',
     'http://199.188.204.202:3000',
     'http://199.188.204.202'

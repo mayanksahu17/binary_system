@@ -28,7 +28,7 @@ import { initializeUser } from "../services/userInit.service";
 dotenv.config();
 
 const MONGODB_URI = process.env.MONGODB_URL_DEVELOPMENT || process.env.MONGODB_URI || "mongodb://localhost:27017/binary_system";
-const API_BASE_URL = process.env.API_BASE_URL || "http://localhost:5001/api/v1";
+const API_BASE_URL = process.env.API_BASE_URL || "http://localhost:8000/api/v1";
 
 interface TestResult {
   name: string;
