@@ -6,9 +6,20 @@ FROM base AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
+# Configure npm for better network handling
+RUN npm config set registry https://registry.npmjs.org/ && \
+    npm config set fetch-timeout 300000 && \
+    npm config set fetch-retry-mintimeout 20000 && \
+    npm config set fetch-retry-maxtimeout 120000 && \
+    npm config set maxsockets 10
+
 # Copy package files
 COPY package*.json ./
-RUN npm ci
+
+# Install dependencies with retry logic for network issues
+RUN npm ci --prefer-offline --no-audit || \
+    (sleep 5 && npm ci --prefer-offline --no-audit) || \
+    (sleep 10 && npm ci --prefer-offline --no-audit)
 
 # Builder stage
 FROM base AS builder
