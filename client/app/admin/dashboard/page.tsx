@@ -323,7 +323,7 @@ export default function AdminDashboard() {
                       tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
                     />
                     <Tooltip
-                      formatter={(value: number) => formatCurrency(value)}
+                      formatter={(value: number | undefined) => value !== undefined ? formatCurrency(value) : ''}
                       contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '6px' }}
                     />
                     <Bar dataKey="amount" fill="#4f46e5" radius={[4, 4, 0, 0]} />
@@ -359,7 +359,7 @@ export default function AdminDashboard() {
                       tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
                     />
                     <Tooltip
-                      formatter={(value: number) => formatCurrency(value)}
+                      formatter={(value: number | undefined) => value !== undefined ? formatCurrency(value) : ''}
                       contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '6px' }}
                     />
                     <Bar dataKey="amount" fill="#6366f1" radius={[4, 4, 0, 0]} />
@@ -390,7 +390,7 @@ export default function AdminDashboard() {
                     }}
                   />
                   <Tooltip
-                    formatter={(value: number) => formatCurrency(value)}
+                    formatter={(value: number | undefined) => value !== undefined ? formatCurrency(value) : ''}
                     contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '6px' }}
                   />
                   <Bar dataKey="amount" fill="#4f46e5" radius={[4, 4, 0, 0]} />
