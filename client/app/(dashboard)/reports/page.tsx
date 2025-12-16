@@ -24,6 +24,16 @@ interface Transaction {
     type: string;
     createdAt: string;
   } | null;
+  referralSource?: {
+    userId: string;
+    name: string;
+  } | null;
+  packageInfo?: {
+    packageName: string;
+    referralPct: number;
+    investedAmount: number;
+  } | null;
+  referralPercentage?: number | null;
 }
 
 interface Withdrawal {
@@ -159,7 +169,7 @@ export default function ReportsPage() {
     };
   };
 
-  const renderTransactionTable = (transactions: Transaction[], title: string, showExport: boolean = true) => (
+  const renderTransactionTable = (transactions: Transaction[], title: string, showExport: boolean = true, isReferral: boolean = false) => (
     <div className="bg-white rounded-lg shadow overflow-hidden">
       <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
         <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
@@ -179,6 +189,9 @@ export default function ReportsPage() {
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date & Time</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
+              {isReferral && (
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Source</th>
+              )}
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Transaction ID</th>
             </tr>
@@ -186,7 +199,7 @@ export default function ReportsPage() {
           <tbody className="bg-white divide-y divide-gray-200">
             {transactions.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-6 py-4 text-center text-gray-500">
+                <td colSpan={isReferral ? 6 : 5} className="px-6 py-4 text-center text-gray-500">
                   No transactions found
                 </td>
               </tr>
@@ -209,6 +222,25 @@ export default function ReportsPage() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                       ${tx.amount.toFixed(2)}
                     </td>
+                    {isReferral && (
+                      <td className="px-6 py-4 text-sm text-gray-600">
+                        {tx.referralSource && tx.packageInfo ? (
+                          <div className="space-y-1">
+                            <div className="font-medium text-gray-900">
+                              {tx.referralSource.name} ({tx.referralSource.userId})
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              activated ${tx.packageInfo.investedAmount.toFixed(2)} package
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              You got ${tx.amount.toFixed(2)} referral income ({tx.referralPercentage?.toFixed(1) || tx.packageInfo.referralPct?.toFixed(1) || 'N/A'}%)
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-gray-400 italic">Source information unavailable</span>
+                        )}
+                      </td>
+                    )}
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
                         tx.status === 'completed' ? 'bg-green-100 text-green-800' :
@@ -451,7 +483,7 @@ export default function ReportsPage() {
             {/* Content */}
             {activeTab === 'roi' && renderTransactionTable(roiTransactions, 'ROI Transactions')}
             {activeTab === 'binary' && renderTransactionTable(binaryTransactions, 'Binary Bonus Transactions')}
-            {activeTab === 'referral' && renderTransactionTable(referralTransactions, 'Referral Bonus Transactions')}
+            {activeTab === 'referral' && renderTransactionTable(referralTransactions, 'Referral Bonus Transactions', true, true)}
             {activeTab === 'careerLevel' && renderTransactionTable(careerLevelTransactions, 'Career Level Transactions')}
             {activeTab === 'investment' && renderInvestmentTable()}
             {activeTab === 'withdrawal' && renderWithdrawalTable()}

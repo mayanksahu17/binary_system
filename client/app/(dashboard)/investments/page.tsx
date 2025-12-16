@@ -19,6 +19,11 @@ interface Investment {
   isBinaryUpdated: boolean;
   createdAt: string;
   expiresOn?: string;
+  voucherId?: string | null;
+  voucher?: {
+    voucherId: string;
+    amount: number;
+  } | null;
 }
 
 export default function InvestmentsPage() {
@@ -302,7 +307,32 @@ export default function InvestmentsPage() {
                       </p>
                     </div>
                   </div>
+                  {/* Voucher Information */}
+                  {selectedInvestment.voucher && (
+                    <div className="mt-4 pt-4 border-t border-indigo-200">
+                      <div className="flex items-center gap-2 mb-2">
+                        <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <p className="text-sm font-semibold text-gray-700">Activated Using Voucher</p>
                       </div>
+                      <div className="bg-white rounded-lg p-3 border border-green-200">
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="text-sm text-gray-600">Voucher ID:</span>
+                          <span className="text-sm font-mono font-semibold text-gray-900">
+                            {selectedInvestment.voucher.voucherId}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-gray-600">Voucher Amount:</span>
+                          <span className="text-lg font-bold text-green-600">
+                            {formatCurrency(selectedInvestment.voucher.amount)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
 
                 {/* Status & Timeline */}
                 <div className="bg-white border border-gray-200 rounded-lg p-4">

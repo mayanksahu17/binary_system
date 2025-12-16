@@ -292,21 +292,44 @@ export const getUserInvestments = asyncHandler(async (req, res) => {
     .sort({ createdAt: -1 })
     .lean();
 
-  const investmentsFormatted = investments.map((inv) => ({
-    id: inv._id,
-    package: inv.packageId ? {
-      id: (inv.packageId as any)._id,
-      name: (inv.packageId as any).packageName,
-      roi: (inv.packageId as any).roi,
-      duration: (inv.packageId as any).duration,
-    } : null,
-    investedAmount: parseFloat(inv.investedAmount.toString()),
-    depositAmount: parseFloat(inv.depositAmount.toString()),
-    type: inv.type,
-    isBinaryUpdated: inv.isBinaryUpdated,
-    createdAt: inv.createdAt,
-    expiresOn: inv.expiresOn,
-  }));
+  // Get voucher information for investments that used vouchers
+  const voucherIds = investments
+    .filter((inv) => inv.voucherId)
+    .map((inv) => inv.voucherId);
+  
+  const vouchersMap = new Map();
+  if (voucherIds.length > 0) {
+    const vouchers = await Voucher.find({ voucherId: { $in: voucherIds } })
+      .select("voucherId amount")
+      .lean();
+    vouchers.forEach((v: any) => {
+      vouchersMap.set(v.voucherId, {
+        voucherId: v.voucherId,
+        amount: parseFloat(v.amount.toString()),
+      });
+    });
+  }
+
+  const investmentsFormatted = investments.map((inv) => {
+    const voucherInfo = inv.voucherId ? vouchersMap.get(inv.voucherId) : null;
+    return {
+      id: inv._id,
+      package: inv.packageId ? {
+        id: (inv.packageId as any)._id,
+        name: (inv.packageId as any).packageName,
+        roi: (inv.packageId as any).roi,
+        duration: (inv.packageId as any).duration,
+      } : null,
+      investedAmount: parseFloat(inv.investedAmount.toString()),
+      depositAmount: parseFloat(inv.depositAmount.toString()),
+      type: inv.type,
+      isBinaryUpdated: inv.isBinaryUpdated,
+      createdAt: inv.createdAt,
+      expiresOn: inv.expiresOn,
+      voucherId: inv.voucherId || null,
+      voucher: voucherInfo || null,
+    };
+  });
 
   const response = res as any;
   response.status(200).json({
@@ -517,12 +540,46 @@ export const getUserReports = asyncHandler(async (req, res) => {
   const investments = await Investment.find({
     _id: { $in: investmentIds.map((id) => new Types.ObjectId(id)) },
   })
-    .populate("packageId", "packageName roi duration")
+    .populate("packageId", "packageName roi duration referralPct levelOneReferral")
+    .populate("user", "userId name")
     .lean();
 
   const investmentMap = new Map();
   investments.forEach((inv) => {
     investmentMap.set(inv._id.toString(), inv);
+  });
+
+  // Get referral source information (investments that generated referral bonuses)
+  const referralInvestmentIds = referralTransactions
+    .map((tx) => tx.txRef)
+    .filter((id): id is string => !!id);
+  
+  const referralInvestments = await Investment.find({
+    _id: { $in: referralInvestmentIds.map((id) => new Types.ObjectId(id)) },
+  })
+    .populate("packageId", "packageName referralPct levelOneReferral")
+    .populate("user", "userId name")
+    .lean();
+
+  const referralInvestmentMap = new Map();
+  referralInvestments.forEach((inv) => {
+    referralInvestmentMap.set(inv._id.toString(), inv);
+  });
+
+  // Get source users from meta field
+  const referralSourceUserIds = referralTransactions
+    .map((tx) => tx.meta?.fromUser)
+    .filter((id): id is string => !!id);
+  
+  const referralSourceUsers = await User.find({
+    _id: { $in: referralSourceUserIds.map((id) => new Types.ObjectId(id)) },
+  })
+    .select("userId name")
+    .lean();
+
+  const referralSourceUserMap = new Map();
+  referralSourceUsers.forEach((u: any) => {
+    referralSourceUserMap.set(u._id.toString(), u);
   });
 
   const formatTransaction = (tx: any) => ({
@@ -563,6 +620,47 @@ export const getUserReports = asyncHandler(async (req, res) => {
     };
   };
 
+  const formatReferralTransaction = (tx: any) => {
+    const investment = tx.txRef ? referralInvestmentMap.get(tx.txRef) : null;
+    const sourceUserId = tx.meta?.fromUser;
+    const sourceUser = sourceUserId ? referralSourceUserMap.get(sourceUserId) : null;
+    
+    // Get package details
+    const packageInfo = investment && (investment.packageId as any) ? {
+      packageName: (investment.packageId as any)?.packageName || "N/A",
+      referralPct: (investment.packageId as any)?.referralPct || (investment.packageId as any)?.levelOneReferral || 7,
+      investedAmount: parseFloat(investment.investedAmount.toString()),
+    } : null;
+
+    // Use package referral percentage if available, otherwise calculate from amount
+    let referralPct = null;
+    if (packageInfo) {
+      referralPct = packageInfo.referralPct;
+    } else if (investment && parseFloat(investment.investedAmount.toString()) > 0) {
+      // Fallback: calculate from transaction amount and invested amount
+      referralPct = (parseFloat(tx.amount.toString()) / parseFloat(investment.investedAmount.toString())) * 100;
+    }
+
+    return {
+      id: tx._id,
+      type: tx.type,
+      amount: parseFloat(tx.amount.toString()),
+      currency: tx.currency || "USD",
+      balanceBefore: parseFloat(tx.balanceBefore.toString()),
+      balanceAfter: parseFloat(tx.balanceAfter.toString()),
+      status: tx.status,
+      txRef: tx.txRef,
+      meta: tx.meta,
+      createdAt: tx.createdAt,
+      referralSource: sourceUser ? {
+        userId: sourceUser.userId,
+        name: sourceUser.name,
+      } : null,
+      packageInfo: packageInfo,
+      referralPercentage: referralPct,
+    };
+  };
+
   const formatWithdrawal = (wd: any) => ({
     id: wd._id,
     amount: parseFloat(wd.amount.toString()),
@@ -581,7 +679,7 @@ export const getUserReports = asyncHandler(async (req, res) => {
     data: {
       roi: roiTransactions.map(formatTransaction),
       binary: binaryTransactions.map(formatTransaction),
-      referral: referralTransactions.map(formatTransaction),
+      referral: referralTransactions.map(formatReferralTransaction),
       careerLevel: careerLevelTransactions.map(formatTransaction),
       investment: investmentTransactions.map(formatInvestmentTransaction),
       withdrawals: withdrawals.map(formatWithdrawal),

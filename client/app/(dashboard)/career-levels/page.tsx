@@ -161,18 +161,18 @@ export default function CareerLevelsPage() {
                 <div>
                   <div className="flex justify-between text-sm text-gray-600 mb-2">
                     <span>Progress: ${progress.levelInvestment.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                    <span>Target: ${progress.currentLevel.investmentThreshold.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    <span>Target: ${(progress.currentLevel.investmentThreshold * 2).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-4">
                     <div
                       className="bg-indigo-600 h-4 rounded-full transition-all duration-300"
                       style={{
-                        width: `${getProgressPercentage(progress.levelInvestment, progress.currentLevel.investmentThreshold)}%`,
+                        width: `${getProgressPercentage(progress.levelInvestment, progress.currentLevel.investmentThreshold * 2)}%`,
                       }}
                     ></div>
                   </div>
                   <p className="text-xs text-gray-500 mt-1">
-                    {getProgressPercentage(progress.levelInvestment, progress.currentLevel.investmentThreshold).toFixed(1)}% complete
+                    {getProgressPercentage(progress.levelInvestment, progress.currentLevel.investmentThreshold * 2).toFixed(1)}% complete
                   </p>
                 </div>
 

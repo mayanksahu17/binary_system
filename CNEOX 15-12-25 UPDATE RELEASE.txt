@@ -1,0 +1,372 @@
+Bug fix: Parent/Referrer mismatch
+Issue
+User CROWN-000014 was created with referrer CROWN-000001
+The UI showed CROWN-000012 as the parent instead of CROWN-000001
+Cause: When the referrer's left/right positions are full, the system places the user under a different parent in the binary tree, but the UI was showing the binary tree placement parent instead of the referrer
+Root cause
+The getUserBinaryTree API returned BinaryTree.parent (placement parent)
+The UI displayed this as "Parent"
+Users expect "Parent" to be the referrer (who referred them), not the binary tree placement parent
+Fix
+Updated API (server/src/controllers/user.controller.ts):
+Modified getUserBinaryTree to fetch the user's referrer from the User model
+Changed parent to return the referrer (from User.referrer)
+Added optional treeParent for the actual binary tree placement parent (for debugging)
+Updated TypeScript interfaces:
+Added optional treeParent to BinaryTreeInfo in dashboard and binary pages
+Verification
+Created and ran a verification script that confirmed:
+User CROWN-000014 has referrer CROWN-000001 (from User model)
+BinaryTree parent is CROWN-000012 (placement parent)
+The API now returns the referrer as parent
+Result
+The "Parent" in the Tree Connections section now shows the referrer (CROWN-000001) instead of the binary tree placement parent (CROWN-000012)
+The binary tree structure remains correct (user is still placed under CROWN-000012 in the tree)
+The UI now matches user expectations
+The fix is complete and ready for testing. The dashboard should now display CROWN-000001 as the parent for CROWN-000014.
+
+
+
+
+
+
+
+Direct Referrals page
+Features
+Dedicated referrals page (/referrals)
+Pagination (20 per page)
+Search by User ID, Name, Email, or Phone
+Filters: Status (Active, Inactive, Suspended, Blocked) and Position (Left, Right)
+Contact links: clickable email and phone
+Responsive table layout
+Backend API updates
+Updated getUserDirectReferrals to support:
+Pagination (page, limit)
+Search across multiple fields
+Status filtering
+Position filtering
+Sorting by newest first
+Returns pagination metadata (total, pages, etc.)
+Navigation
+Added "Referrals" link to the dashboard sidebar
+Icon and navigation item added
+UI details
+Header with total referral count
+Search bar with debounced input
+Filter dropdowns for Status and Position
+Clear filters button
+Table with:
+User ID, Name, Contact (email/phone), Position, Country, Joined Date, Status
+Clickable email and phone links
+Status badges with color coding
+Pagination controls with page numbers
+Empty states for no results
+Loading and error states
+
+
+
+
+
+
+
+Search functionality added to genealogy pages
+Features implemented
+User panel — My Genealogy page (/my-tree)
+Search bar in the header
+Search by User ID, Name, or Email
+Navigates to the found user node
+Highlights the searched node with a yellow border and glow
+Error message if user not found
+Clear button to reset search
+Admin panel — Binary Tree page (/tree)
+Search bar below performance controls
+Same search functionality as user panel
+Navigates and highlights searched users
+Integrated with existing UI
+Technical implementation
+Search logic:
+Case-insensitive search across userId, name, and email
+Finds the first matching user in the tree data
+Uses ReactFlow's setCenter to navigate to the node
+Zooms to 1.2x with smooth animation (800ms)
+Visual feedback:
+Highlighted nodes have a yellow border (#fbbf24)
+Glow effect for visibility
+Error messages for not found cases
+User experience:
+Enter key triggers search
+Clear button resets search and highlights
+Search icon in input field
+Responsive design
+
+
+
+
+
+Removed "Referral & Binary" wallet
+Changes made
+Backend — Wallet type enum
+Removed REFERRAL_BINARY from WalletType enum in server/src/models/types.ts
+Backend — Wallet initialization
+Removed REFERRAL_BINARY wallet creation from initializeWallets() in server/src/services/userInit.service.ts
+New users will only get separate Referral and Binary wallets
+Backend — Withdrawal model
+Removed "r&b" from Withdrawal model enum in server/src/models/Withdrawal.ts
+Updated TypeScript interface to remove "r&b" option
+Backend — Withdrawal controller
+Removed "r&b" from withdrawal validation in server/src/controllers/user.controller.ts
+Frontend — Wallet displays
+Removed referral_binary from wallet exchange page (client/app/(dashboard)/wallet-exchange/page.tsx)
+Removed referral_binary from withdraw page filters and dropdown (client/app/(dashboard)/withdraw/page.tsx)
+Removed referral_binary from dashboard wallet display names (client/app/(dashboard)/dashboard/page.tsx)
+Verification
+Build passes: TypeScript compilation successful
+No remaining references: All referral_binary and r&b references removed
+Bonus crediting: Confirmed that referral and binary bonuses are already credited to separate REFERRAL and BINARY wallets (no code was using REFERRAL_BINARY)
+Result
+Users now have only Referral Wallet and Binary Wallet (no combined wallet)
+Withdrawal page shows only: ROI, Interest, Referral, Binary, Withdrawal, and Career Level wallets
+New users will not get a referral_binary wallet
+Existing referral_binary wallets in the database will remain but won't be accessible through the UI
+The wallet system is simplified. Users can withdraw from Referral Wallet and Binary Wallet separately.
+
+
+
+
+
+Wallet address update restriction implemented
+Security
+Users can set wallet address once (if not already set)
+Users cannot change wallet address after it's set
+Only admins can update existing wallet addresses
+Backend validation prevents bypassing frontend restrictions
+Error messages guide users to contact admin support
+User experience
+Clear messaging that wallet address cannot be changed
+Read-only display of existing wallet addresses
+Buttons hidden when editing is not allowed
+Consistent behavior across dashboard, profile, and withdraw pages
+The wallet address is now locked after the first save, and only admins can change it.
+
+
+
+Crypto address type clarification added
+Changes made
+Dashboard page — Wallet address modal
+Added info box listing supported crypto types: Bitcoin (BTC), USDT (TRC20/ERC20), USDC, Ethereum (ETH), and others
+Updated placeholder: "Enter your Bitcoin, USDT, USDC, Ethereum, or other crypto wallet address"
+Added format tip: "Bitcoin addresses start with 1, 3, or bc1; USDT TRC20 addresses start with T"
+Updated help text to mention supported cryptocurrencies
+Added note in empty state about supported types
+Withdraw page — Wallet address modal
+Added same info box with supported crypto types
+Updated placeholder and help text
+Added format tip
+Updated empty state to show supported types
+Display sections
+Updated "No wallet address set" messages to include supported crypto types
+Added note in warning messages about supported cryptocurrencies
+User experience improvements
+Clear list of supported cryptocurrencies
+Format examples for common addresses
+Consistent messaging across all pages
+Helpful tips to reduce confusion
+Supported crypto types mentioned
+Bitcoin (BTC)
+USDT (TRC20/ERC20)
+USDC
+Ethereum (ETH)
+Other supported cryptocurrencies
+Users now see which crypto address types are accepted, reducing confusion when entering their wallet address.
+
+
+
+
+Voucher creation page updates
+Changes made
+Removed "Free voucher" option
+Removed the "Create without wallet (Free voucher)" option from the dropdown
+Wallet selection is now required
+Fixed duplicate wallet types
+Filtered out referral_binary (removed from the system)
+Filtered out investment and token wallets (not suitable for vouchers)
+Only shows allowed wallet types: roi, interest, referral, binary, withdrawal, career_level
+Improved wallet display
+Added wallet name formatting:
+roi → "ROI Wallet"
+interest → "Interest Wallet"
+referral → "Referral Wallet"
+binary → "Binary Wallet"
+withdrawal → "Withdrawal Wallet"
+career_level → "Career Level Wallet"
+Shows balance for each wallet
+Updated validation
+Changed label from "From Wallet (Optional)" to "From Wallet (Required)"
+Added required attribute to the select field
+Added validation in handleCreateVoucher to ensure a wallet is selected
+Shows error message if no wallet is selected
+UI improvements
+Default option changed to "Select a wallet" (instead of free voucher)
+Better error handling and state management
+Result
+No free vouchers: users must select a wallet
+No duplicate wallets: only shows referral and binary (no referral_binary)
+Clear wallet names: formatted display names
+Required selection: wallet must be chosen before creating a voucher
+The voucher creation page is now cleaner and prevents confusion from duplicate wallet types.
+
+
+
+
+Toast notifications added for all error messages
+Changes made
+Vouchers page (/vouchers)
+Added toast.error() for all validation errors
+Added balance check before creating voucher (shows toast if insufficient)
+Errors now show as pop-up toasts in addition to inline messages
+Withdraw page (/withdraw)
+Added toast.error() for all validation errors:
+Missing wallet address
+No wallet selected
+Invalid amount
+Wallet not found
+Insufficient balance
+Capping limit exceeded
+Payment info update failures
+Wallet exchange page (/wallet-exchange)
+Added toast import
+Added toast.error() for all validation errors:
+Missing fields
+Invalid wallet types
+Daily limit exceeded
+Insufficient balance
+Same source/destination wallet
+Exchange failures
+Added toast.success() for successful exchanges
+Dashboard page (/dashboard)
+Added toast.error() for:
+Dashboard data loading failures
+Wallet address update errors
+Investments page (/investments)
+Added toast import
+Added toast.error() for investment loading failures
+User experience improvements
+All errors display as toast notifications
+Errors are visible immediately without scrolling
+Consistent error handling across pages
+Success messages also use toasts
+Errors still appear inline for context
+Error types covered
+Validation errors (missing fields, invalid inputs)
+Business logic errors (insufficient balance, limits exceeded)
+API errors (network failures, server errors)
+Permission errors (restricted actions)
+All error messages now appear as toast pop-ups for better visibility and user experience.
+
+
+
+Voucher information added to investment details
+
+Changes made
+Backend API (server/src/controllers/user.controller.ts)
+Updated getUserInvestments to include voucher information
+Fetches voucher details (voucherId and amount) for investments that used vouchers
+Returns voucherId and voucher object in the investment response
+Frontend interface (client/app/(dashboard)/investments/page.tsx)
+Updated Investment interface to include:
+voucherId?: string | null
+voucher?: { voucherId: string; amount: number } | null
+Investment details modal
+Added a "Voucher Information" section in the Financial Information card
+Displays when a voucher was used to activate the package
+Shows:
+Checkmark icon with "Activated Using Voucher" label
+Voucher ID (formatted)
+Voucher Amount (highlighted in green)
+Styled with a green border to indicate voucher usage
+UI details
+Conditional display: only shows when selectedInvestment.voucher exists
+Visual indicator: green checkmark icon
+Clear labeling: "Activated Using Voucher" header
+Information displayed:
+Voucher ID in monospace font
+Voucher Amount in green, bold text
+Styling: white background with green border to distinguish from other financial info
+Result
+When viewing investment details, if the package was activated using a voucher:
+Users see a clear "Activated Using Voucher" section
+Voucher ID and amount are displayed
+Makes it clear how the package was activated
+This provides transparency and helps users verify how their investments were activated.
+
+
+
+Changes Made:
+1. User Panel - My Genealogy (/my-tree)
+Changed popup position from top to right side
+Position: left: calc(100% + 16px) and top: 50% with translateY(-50%) for vertical centering
+Added left-pointing arrow using ::before pseudo-element
+2. Admin Panel - Binary Tree (/tree)
+Applied the same right-side positioning
+Updated arrow to point left instead of down
+Added special styling for root node popup border color
+Visual Improvements:
+Popup appears to the right of the node on hover
+Arrow points left toward the node
+Vertically centered with the node
+No overlap with node content (user ID, name, etc.)
+Consistent styling across both panels
+The popup now appears on the right side, so it won't cover the user ID or other node information. The user ID remains visible at all times.
+
+
+
+
+
+
+Changes Made:
+Backend Changes:
+Updated processReferralBonus function (server/src/services/investment.service.ts):
+Added fromUserId parameter to track the user who activated the package
+Passes fromUserId to createReferralTransaction so it's stored in the transaction meta
+Updated getUserReports function (server/src/controllers/user.controller.ts):
+Fetches investments that generated referral bonuses
+Fetches source users from transaction meta fields
+Created formatReferralTransaction function that includes:
+Source user information (userId, name)
+Package information (packageName, investedAmount, referralPct)
+Calculated referral percentage
+Frontend Changes:
+Updated Transaction interface (client/app/(dashboard)/reports/page.tsx):
+Added referralSource, packageInfo, and referralPercentage fields
+Enhanced renderTransactionTable function:
+Added isReferral parameter to show a "Source" column for referral transactions
+Displays:
+Source user name and ID (e.g., "CROWN-1000015")
+Package amount activated (e.g., "activated $5000 package")
+Referral income amount and percentage (e.g., "You got $500 referral income (10%)")
+Updated referral tab rendering:
+Passes isReferral=true to show the source column
+Result:
+The Referral Bonus Transactions table now shows:
+Date & Time
+Type (CREDIT)
+Amount ($500.00)
+Source: "CROWN-1000015 activated $5000 package. You got $500 referral income (10%)"
+Status
+Transaction ID
+This provides clear context on how each referral income was generated.
+
+
+
+
+Changes Made:
+Updated Target Display (client/app/(dashboard)/career-levels/page.tsx):
+Changed the overall target from investmentThreshold to investmentThreshold * 2
+Updated the progress percentage calculation to use the total target (left + right)
+Result:
+Now the Career Levels section will display:
+Overall Target: $2,000.00 (when each side requires $1,000)
+Left Business Target: $1,000.00 per side
+Right Business Target: $1,000.00 per side
+Progress: Calculated against the total target of $2,000.00
+The overall target now reflects that users need to bring $1,000 on the left side and $1,000 on the right side to complete a level with a $2,000 total target.

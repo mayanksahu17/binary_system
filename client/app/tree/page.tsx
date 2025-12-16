@@ -76,6 +76,7 @@ const CustomNode = memo(({ data }: { data: CustomNodeData }) => {
       className={`custom-node ${isRoot ? 'root-node' : ''}`}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
+      style={{ position: 'relative', zIndex: showPopup ? 99998 : 'auto' }}
     >
       <Handle type="target" position={Position.Top} />
       <div className="node-content">
@@ -112,7 +113,7 @@ const CustomNode = memo(({ data }: { data: CustomNodeData }) => {
       </div>
       <Handle type="source" position={Position.Bottom} />
       {showPopup && (
-        <div className="node-popup">
+        <div className="node-popup" style={{ zIndex: 99999, pointerEvents: 'none' }}>
           <div className="popup-header">User Details</div>
           <div className="popup-content">
             <div className="popup-item">
@@ -598,7 +599,7 @@ export default function TreePage() {
       </div>
 
       {/* React Flow Canvas */}
-      <div className="flex-1" style={{ position: 'relative', overflow: 'visible' }}>
+      <div className="flex-1" style={{ position: 'relative', overflow: 'visible', zIndex: 1 }}>
         <ReactFlow
           nodes={nodes.map(node => ({
             ...node,
@@ -658,7 +659,7 @@ export default function TreePage() {
           transform: scale(1.15);
           box-shadow: 0 8px 24px rgba(102, 126, 234, 0.5);
           border-color: #764ba2;
-          z-index: 10;
+          z-index: 100;
         }
 
         .custom-node.root-node {
@@ -801,9 +802,9 @@ export default function TreePage() {
 
         .node-popup {
           position: absolute;
-          bottom: calc(100% + 12px);
-          left: 50%;
-          transform: translateX(-50%);
+          top: 50%;
+          left: calc(100% + 16px);
+          transform: translateY(-50%);
           background: white;
           border: 3px solid #667eea;
           border-radius: 8px;
@@ -811,20 +812,37 @@ export default function TreePage() {
           min-width: 250px;
           max-width: 300px;
           box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
-          z-index: 10000 !important;
+          z-index: 99999 !important;
           pointer-events: none;
           font-size: 0.8em;
           white-space: normal;
+          isolation: isolate;
         }
 
-        .node-popup::after {
+        .node-popup::before {
           content: '';
           position: absolute;
-          top: 100%;
-          left: 50%;
-          transform: translateX(-50%);
+          right: 100%;
+          top: 50%;
+          transform: translateY(-50%);
           border: 8px solid transparent;
-          border-top-color: #667eea;
+          border-right-color: #667eea;
+          z-index: 99999;
+        }
+        .custom-node.root-node .node-popup {
+          border-color: #f5576c;
+        }
+        .custom-node.root-node .node-popup::before {
+          border-right-color: #f5576c;
+        }
+        .react-flow__node {
+          z-index: 1 !important;
+        }
+        .react-flow__node:hover {
+          z-index: 100 !important;
+        }
+        .react-flow__node .node-popup {
+          z-index: 99999 !important;
         }
 
         .popup-header {

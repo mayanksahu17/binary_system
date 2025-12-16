@@ -615,7 +615,7 @@ export async function processInvestment(
       if (existingInvestments === 0) {
         // This is the user's first investment, pay referral bonus to their direct referrer (sponsor)
         // Note: user.referrer is the person who invited them, not the binary tree parent
-        await processReferralBonus(user.referrer, amount, pkg, investment._id.toString());
+        await processReferralBonus(user.referrer, amount, pkg, investment._id.toString(), userId);
         
         // Mark this investment as having referral bonus paid (for tracking)
         investment.referralPaid = true;
@@ -727,7 +727,8 @@ async function processReferralBonus(
   sponsorId: Types.ObjectId,
   amount: number,
   pkg: any,
-  investmentId?: string
+  investmentId?: string,
+  fromUserId?: Types.ObjectId
 ) {
   try {
     // Get package referral bonus percentage (use new referralPct, fallback to legacy levelOneReferral)
@@ -745,11 +746,11 @@ async function processReferralBonus(
         "add"
       );
       
-      // Create referral transaction
+      // Create referral transaction with source user information
       await createReferralTransaction(
         sponsorId,
         referralBonus,
-        undefined, // fromUserId can be passed if needed
+        fromUserId?.toString(),
         investmentId
       );
     }
