@@ -1,5 +1,5 @@
 # Frontend Dockerfile - Multi-stage build
-FROM node:18-alpine AS base
+FROM node:20-alpine AS base
 
 # Install dependencies stage
 FROM base AS deps
