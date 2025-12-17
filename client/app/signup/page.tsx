@@ -143,7 +143,9 @@ function SignupContent() {
       }
 
       await signup(signupData, isAdmin);
-      router.push(isAdmin ? '/admin/packages' : '/dashboard');
+      // Redirect to login page after successful signup so user can login
+      // This ensures proper authentication flow and prevents "invalid token" errors
+      router.push('/login?signup=success');
     } catch (err: any) {
       setError(err.message || 'Signup failed. Please try again.');
     } finally {

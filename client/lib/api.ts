@@ -86,10 +86,17 @@ class ApiClient {
     referrerId?: string;
     position?: 'left' | 'right';
   }) {
-    return this.request<{ user: any; token: string }>('/auth/signup', {
+    const response = await this.request<{ user: any; token: string }>('/auth/signup', {
       method: 'POST',
       body: JSON.stringify(data),
     });
+    
+    // Store token in localStorage after signup (similar to login)
+    if (response.data?.token && typeof window !== 'undefined') {
+      localStorage.setItem('token', response.data.token);
+    }
+    
+    return response;
   }
 
   async validateReferrer(referrerId: string) {
@@ -183,10 +190,17 @@ class ApiClient {
     phone?: string;
     role?: number;
   }) {
-    return this.request<{ admin: any; token: string }>('/admin/signup', {
+    const response = await this.request<{ admin: any; token: string }>('/admin/signup', {
       method: 'POST',
       body: JSON.stringify(data),
     });
+    
+    // Store token in localStorage after signup (similar to login)
+    if (response.data?.token && typeof window !== 'undefined') {
+      localStorage.setItem('adminToken', response.data.token);
+    }
+    
+    return response;
   }
 
   async adminLogin(data: { email: string; password: string }) {

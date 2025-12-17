@@ -1,18 +1,29 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 
-export default function LoginPage() {
+function LoginContent() {
   const [emailOrPhoneOrUserId, setEmailOrPhoneOrUserId] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const { login, user, admin, loading: authLoading } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Check for signup success message
+  useEffect(() => {
+    if (searchParams.get('signup') === 'success') {
+      setSuccessMessage('Account created successfully! Please login to continue.');
+      // Clear the query parameter from URL
+      router.replace('/login', { scroll: false });
+    }
+  }, [searchParams, router]);
 
   // Redirect after successful login - use replace to avoid history issues
   useEffect(() => {
@@ -78,6 +89,11 @@ export default function LoginPage() {
           </p>
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+          {successMessage && (
+            <div className="bg-green-50 border-2 border-green-300 text-black px-4 py-3 rounded-lg">
+              <p className="font-medium text-green-700">{successMessage}</p>
+            </div>
+          )}
           {error && (
             <div className="bg-red-50 border-2 border-red-300 text-black px-4 py-3 rounded-lg">
               <p className="font-medium text-red-700">{error}</p>
@@ -185,6 +201,21 @@ export default function LoginPage() {
         </form>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    }>
+      <LoginContent />
+    </Suspense>
   );
 }
 
