@@ -15,6 +15,7 @@ import { processMockPayment } from "../lib/payments/mock-nowpayments";
 import { exchangeWallets } from "../services/wallet-exchange.service";
 import { sendInvestmentPurchaseEmail, sendWithdrawalCreatedEmail } from "../lib/mail-service/email.service";
 import { getUserCareerProgress } from "../services/career-level.service";
+import { getMinimumVoucherAmount as getMinVoucherAmount } from "../services/package.service";
 import { Types } from "mongoose";
 
 /**
@@ -45,6 +46,31 @@ export const getUserWallets = asyncHandler(async (req, res) => {
       wallets: walletsFormatted,
     },
   });
+});
+
+/**
+ * Get minimum voucher amount
+ * GET /api/v1/user/vouchers/minimum-amount
+ */
+export const getMinimumVoucherAmount = asyncHandler(async (req, res) => {
+  try {
+    const minVoucherAmount = await getMinVoucherAmount();
+    
+    if (minVoucherAmount <= 0) {
+      throw new AppError("No active investment packages found", 404);
+    }
+
+    const response = res as any;
+    response.status(200).json({
+      status: "success",
+      data: {
+        minimumVoucherAmount: minVoucherAmount,
+        minimumInvestment: minVoucherAmount * 2, // Return both for reference
+      },
+    });
+  } catch (error: any) {
+    throw new AppError(error.message || "Failed to get minimum voucher amount", 500);
+  }
 });
 
 /**
@@ -905,6 +931,16 @@ export const createVoucher = asyncHandler(async (req, res) => {
     throw new AppError("Invalid voucher amount", 400);
   }
 
+  // Get minimum voucher amount dynamically from active packages
+  const minVoucherAmount = await getMinVoucherAmount();
+  if (minVoucherAmount <= 0) {
+    throw new AppError("No active investment packages found. Cannot create voucher.", 400);
+  }
+  
+  if (amount < minVoucherAmount) {
+    throw new AppError(`Minimum voucher amount is $${minVoucherAmount.toFixed(2)}. You cannot create a voucher below this amount.`, 400);
+  }
+
   const voucherMultiplier = 2; // 2x multiplier: $100 voucher = $200 investment value
   const investmentValue = amount * voucherMultiplier;
   const expiryDays = 120; // 120 days expiration
@@ -1215,18 +1251,51 @@ export const updateUserProfile = asyncHandler(async (req, res) => {
     updateData.name = name.trim();
   }
 
+  // Prevent users from updating email address - emails are used for account identification
+  // Email can only be changed by admin
   if (email !== undefined) {
+    const currentUser = await User.findById(userId);
+    if (!currentUser) {
+      throw new AppError("User not found", 404);
+    }
+
+    // Check if user is trying to change their email (only block if email actually changes)
+    const emailChanged = email && email.toLowerCase() !== (currentUser.email?.toLowerCase() || '');
+    
+    if (emailChanged) {
+      // Check if this is an admin request
+      const isAdminRequest = (req as any).admin !== undefined || currentUser.userId === "CROWN-000000";
+      
+      if (!isAdminRequest) {
+        throw new AppError(
+          "Email address cannot be changed. Please contact admin support to update your email address.",
+          403
+        );
+      }
+    }
+    
+    // Allow email update if admin or if email hasn't changed
     if (email) {
       const emailRegex = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
       if (!emailRegex.test(email)) {
         throw new AppError("Invalid email format", 400);
       }
-      // NOTE: We intentionally do NOT enforce uniqueness on email anymore.
-      // Multiple user accounts can share the same email address.
       updateData.email = email.toLowerCase();
     } else {
-      // Allow clearing email
-      updateData.email = undefined;
+      // Allow clearing email (admin only or if already empty)
+      if (!currentUser.email || currentUser.email.trim().length === 0) {
+        updateData.email = undefined;
+      } else {
+        // Regular users cannot clear their email
+        const isAdminRequest = (req as any).admin !== undefined || currentUser.userId === "CROWN-000000";
+        if (!isAdminRequest) {
+          throw new AppError(
+            "Email address cannot be removed. Please contact admin support.",
+            403
+          );
+        }
+        updateData.email = undefined;
+      }
     }
   }
 

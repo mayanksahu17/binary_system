@@ -84,8 +84,8 @@ export default function ProfilePage() {
     setSaving(true);
 
     try {
-      // Remove walletAddress from update - it can only be set once and changed by admin
-      const { walletAddress, ...updateData } = formData;
+      // Remove walletAddress and email from update - they can only be changed by admin
+      const { walletAddress, email, ...updateData } = formData;
       await api.updateProfile(updateData);
       toast.success('Profile updated successfully!');
       await refreshAuth();
@@ -139,14 +139,12 @@ export default function ProfilePage() {
                 <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
                   Email Address
                 </label>
-                <input
-                  type="email"
-                  id="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
-                />
+                <div className="p-3 bg-gray-50 border border-gray-300 rounded-md">
+                  <p className="text-sm text-gray-800">{formData.email}</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Email address cannot be changed. Contact admin support if you need to update it.
+                  </p>
+                </div>
               </div>
 
               <div>
@@ -192,7 +190,7 @@ export default function ProfilePage() {
               <h2 className="text-lg font-semibold text-gray-900 mb-4">Wallet Information</h2>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Crypto Wallet Address
+                  USDT TRC20 Wallet Address
                 </label>
                 <div className="p-3 bg-gray-50 border border-gray-300 rounded-md">
                   <p className="text-sm font-mono text-gray-800 break-all">{formData.walletAddress}</p>

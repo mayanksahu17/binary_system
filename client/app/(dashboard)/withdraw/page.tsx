@@ -99,7 +99,7 @@ export default function WithdrawPage() {
   const handleWithdraw = async () => {
     // Check wallet address first
     if (!walletAddress) {
-      const errorMsg = 'Crypto wallet address is required. Please set your wallet address before requesting a withdrawal.';
+      const errorMsg = 'USDT TRC20 wallet address is required. Please set your wallet address before requesting a withdrawal.';
       setError(errorMsg);
       toast.error(errorMsg);
       return;
@@ -167,18 +167,38 @@ export default function WithdrawPage() {
   };
 
   const handleUpdatePaymentInfo = async () => {
-    if (!walletAddress) {
-      const errorMsg = 'Please enter a crypto wallet address';
+    // Validate wallet address is not empty
+    if (!walletAddress || walletAddress.trim().length === 0) {
+      const errorMsg = 'Please enter a USDT TRC20 wallet address';
       setError(errorMsg);
       toast.error(errorMsg);
       return;
     }
+    
+    // Additional validation - ensure it's not just whitespace
+    const trimmedAddress = walletAddress.trim();
+    if (trimmedAddress.length < 10) {
+      const errorMsg = 'Wallet address seems too short. Please enter a valid USDT TRC20 wallet address.';
+      setError(errorMsg);
+      toast.error(errorMsg);
+      return;
+    }
+    
+    // Validate USDT TRC20 address format (should start with T)
+    if (!trimmedAddress.startsWith('T')) {
+      const errorMsg = 'Invalid USDT TRC20 address. USDT TRC20 addresses must start with "T".';
+      setError(errorMsg);
+      toast.error(errorMsg);
+      return;
+    }
+    
     try {
       setError('');
       await api.updateWalletAddress({ 
-        walletAddress: walletAddress
+        walletAddress: trimmedAddress
       });
       setShowWalletModal(false);
+      setWalletAddress(''); // Reset after successful save
       toast.success('Payment information updated successfully!');
       await fetchData();
     } catch (err: any) {
@@ -341,7 +361,7 @@ export default function WithdrawPage() {
                     </button>
                     {!walletAddress && (
                       <p className="mt-2 text-sm text-red-600 text-center">
-                        Please set your crypto wallet address to proceed
+                        Please set your USDT TRC20 wallet address to proceed
                       </p>
                     )}
                   </>
@@ -365,7 +385,7 @@ export default function WithdrawPage() {
                 )}
               </div>
               <div>
-                <h3 className="text-sm font-medium text-gray-700 mb-2">Crypto Wallet Address</h3>
+                <h3 className="text-sm font-medium text-gray-700 mb-2">USDT TRC20 Wallet Address</h3>
                 {walletAddress ? (
                   <div className="p-3 bg-green-50 border border-green-200 rounded-md">
                     <p className="text-sm font-mono text-gray-800 break-all">{walletAddress}</p>
@@ -379,7 +399,7 @@ export default function WithdrawPage() {
                     <p className="text-sm text-yellow-800">No wallet address set</p>
                     <p className="text-xs text-yellow-600 mt-1">Required for withdrawals</p>
                     <p className="text-xs text-gray-600 mt-2">
-                      Supported: Bitcoin (BTC), USDT (TRC20/ERC20), USDC, Ethereum (ETH), and other cryptocurrencies
+                      Supported: USDT TRC20 only
                     </p>
                   </div>
                 )}
@@ -388,10 +408,10 @@ export default function WithdrawPage() {
                 <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-md">
                   <p className="text-sm font-semibold text-red-800 mb-1">⚠️ Payment Information Required</p>
                   <p className="text-xs text-red-700">
-                    You need to set a crypto wallet address to request withdrawals.
+                    You need to set a USDT TRC20 wallet address to request withdrawals.
                   </p>
                   <p className="text-xs text-gray-600 mt-2">
-                    Supported cryptocurrencies: Bitcoin, USDT, USDC, Ethereum, and others
+                    Only USDT TRC20 wallet addresses are accepted for withdrawals
                   </p>
                 </div>
               )}
@@ -466,18 +486,18 @@ export default function WithdrawPage() {
                 <div className="mt-3">
                   <h3 className="text-lg font-medium text-gray-900 mb-4">Setup Payment Information</h3>
                   <p className="text-sm text-gray-600 mb-4">
-                    Set your crypto wallet address to enable withdrawals.
+                    Set your USDT TRC20 wallet address to enable withdrawals.
                   </p>
                   <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
-                    <p className="text-sm font-medium text-blue-900 mb-1">Supported Crypto Addresses:</p>
+                    <p className="text-sm font-medium text-blue-900 mb-1">Payment Method:</p>
                     <p className="text-xs text-blue-700">
-                      You can use addresses from: <strong>Bitcoin (BTC)</strong>, <strong>USDT (TRC20/ERC20)</strong>, <strong>USDC</strong>, <strong>Ethereum (ETH)</strong>, or other supported cryptocurrencies.
+                      Only <strong>USDT TRC20</strong> wallet addresses are accepted for withdrawals.
                     </p>
                   </div>
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Crypto Wallet Address {userWalletAddress && <span className="text-gray-500">(Cannot be changed)</span>}
+                      USDT TRC20 Wallet Address {userWalletAddress && <span className="text-gray-500">(Cannot be changed)</span>}
                     </label>
                     {userWalletAddress ? (
                       <div className="p-3 bg-gray-50 border border-gray-300 rounded-md">
@@ -492,14 +512,21 @@ export default function WithdrawPage() {
                           type="text"
                           value={walletAddress}
                           onChange={(e) => setWalletAddress(e.target.value)}
+                          onKeyDown={(e) => {
+                            // Prevent Enter key from submitting
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                            }
+                          }}
                           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 font-mono text-sm"
-                          placeholder="Enter your Bitcoin, USDT, USDC, Ethereum, or other crypto wallet address"
+                          placeholder="Enter your USDT TRC20 wallet address (starts with T)"
+                          autoComplete="off"
                         />
                         <p className="mt-1 text-xs text-gray-500">
-                          Enter your cryptocurrency wallet address (Bitcoin, USDT, USDC, Ethereum, etc.) for crypto withdrawals. This can only be set once.
+                          Enter your USDT TRC20 wallet address for withdrawals. This can only be set once.
                         </p>
                         <p className="mt-1 text-xs text-gray-600 font-medium">
-                          💡 Make sure to use the correct address format for your chosen cryptocurrency (e.g., Bitcoin addresses start with 1, 3, or bc1; USDT TRC20 addresses start with T).
+                          💡 USDT TRC20 wallet addresses start with "T" (e.g., Txxxxxxxxxxxxxxxxxxxxxxxxxxxxx).
                         </p>
                       </>
                     )}
@@ -507,16 +534,20 @@ export default function WithdrawPage() {
 
                   <div className="flex justify-end space-x-3 mt-6">
                     <button
+                      type="button"
                       onClick={() => {
                         setShowWalletModal(false);
+                        setWalletAddress(''); // Reset on cancel
                       }}
                       className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300"
                     >
                       Cancel
                     </button>
                     <button
+                      type="button"
                       onClick={handleUpdatePaymentInfo}
-                      className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700"
+                      disabled={!walletAddress || walletAddress.trim().length === 0}
+                      className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Save
                     </button>

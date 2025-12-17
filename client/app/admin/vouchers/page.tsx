@@ -42,12 +42,47 @@ export default function AdminVouchersPage() {
   const [formUserId, setFormUserId] = useState('');
   const [formAmount, setFormAmount] = useState('');
   const [formExpiryDays, setFormExpiryDays] = useState('120');
+  const [minVoucherAmount, setMinVoucherAmount] = useState<number>(12.5); // Default fallback
 
   useEffect(() => {
     if (user || admin) {
       fetchVouchers();
+      fetchMinimumVoucherAmount();
     }
   }, [user, admin]);
+
+  // Also fetch minimum when modal opens to ensure latest value
+  useEffect(() => {
+    if (showCreateModal) {
+      fetchMinimumVoucherAmount();
+    }
+  }, [showCreateModal]);
+
+  const fetchMinimumVoucherAmount = async () => {
+    try {
+      // Admin can use the same endpoint or calculate from packages
+      // For now, let's use packages API since admin might not have access to user endpoint
+      const response = await api.getPackages({ status: 'Active' });
+      if (response.data?.packages && response.data.packages.length > 0) {
+        // Find minimum investment amount from all active packages
+        const minAmounts = response.data.packages.map((pkg: any) => {
+          const minAmount = typeof pkg.minAmount === 'object' && (pkg.minAmount as any).$numberDecimal
+            ? parseFloat((pkg.minAmount as any).$numberDecimal)
+            : typeof pkg.minAmount === 'number'
+            ? pkg.minAmount
+            : parseFloat(String(pkg.minAmount));
+          return minAmount;
+        });
+        const minInvestment = Math.min(...minAmounts);
+        // Minimum voucher is half of minimum investment
+        const minVoucher = minInvestment / 2;
+        setMinVoucherAmount(minVoucher);
+      }
+    } catch (err: any) {
+      console.error('Failed to load packages for minimum voucher calculation:', err);
+      // Keep default fallback value
+    }
+  };
 
   const fetchVouchers = async () => {
     try {
@@ -74,6 +109,11 @@ export default function AdminVouchersPage() {
     const amount = parseFloat(formAmount);
     if (isNaN(amount) || amount <= 0) {
       setError('Amount must be a positive number');
+      return;
+    }
+
+    if (amount < minVoucherAmount) {
+      setError(`Minimum voucher amount is $${minVoucherAmount.toFixed(2)}. You cannot create a voucher below this amount.`);
       return;
     }
 
@@ -352,11 +392,14 @@ export default function AdminVouchersPage() {
                   type="number"
                   value={formAmount}
                   onChange={(e) => setFormAmount(e.target.value)}
-                  min="0.01"
+                  min={minVoucherAmount}
                   step="0.01"
-                  placeholder="100.00"
+                  placeholder={minVoucherAmount.toFixed(2)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                 />
+                <p className="mt-1 text-xs text-gray-500">
+                  Minimum voucher amount: ${minVoucherAmount.toFixed(2)}
+                </p>
                 <p className="mt-1 text-xs text-gray-500">
                   Investment Value will be: ${(parseFloat(formAmount) || 0) * 2} (2x multiplier)
                 </p>

@@ -31,6 +31,7 @@ export default function VouchersPage() {
   const [fromWalletType, setFromWalletType] = useState('');
   const [creating, setCreating] = useState(false);
   const [wallets, setWallets] = useState<any[]>([]);
+  const [minVoucherAmount, setMinVoucherAmount] = useState<number>(12.5); // Default fallback
   const hasFetchedRef = useRef(false);
 
   useEffect(() => {
@@ -42,9 +43,30 @@ export default function VouchersPage() {
     
     fetchVouchers();
     fetchWallets();
+    // Always fetch minimum voucher amount to get latest packages
+    fetchMinimumVoucherAmount();
 
     // No cleanup - we want to prevent duplicate calls even on remount
   }, []);
+
+  // Also fetch minimum when modal opens to ensure latest value
+  useEffect(() => {
+    if (showCreateModal) {
+      fetchMinimumVoucherAmount();
+    }
+  }, [showCreateModal]);
+
+  const fetchMinimumVoucherAmount = async () => {
+    try {
+      const response = await api.getMinimumVoucherAmount();
+      if (response.data?.minimumVoucherAmount) {
+        setMinVoucherAmount(response.data.minimumVoucherAmount);
+      }
+    } catch (err: any) {
+      console.error('Failed to load minimum voucher amount:', err);
+      // Keep default fallback value (12.5)
+    }
+  };
 
   const fetchWallets = async () => {
     try {
@@ -81,6 +103,14 @@ export default function VouchersPage() {
       return;
     }
 
+    const requestedAmount = parseFloat(createAmount);
+    if (requestedAmount < minVoucherAmount) {
+      const errorMsg = `Minimum voucher amount is $${minVoucherAmount.toFixed(2)}. You cannot create a voucher below this amount.`;
+      setError(errorMsg);
+      toast.error(errorMsg);
+      return;
+    }
+
     if (!fromWalletType) {
       const errorMsg = 'Please select a wallet to create the voucher from';
       setError(errorMsg);
@@ -92,7 +122,6 @@ export default function VouchersPage() {
     const selectedWallet = wallets.find(w => w.type === fromWalletType);
     if (selectedWallet) {
       const availableBalance = parseFloat(selectedWallet.balance) - parseFloat(selectedWallet.reserved || '0');
-      const requestedAmount = parseFloat(createAmount);
       if (requestedAmount > availableBalance) {
         const errorMsg = `Insufficient balance. Available: $${availableBalance.toFixed(2)}`;
         setError(errorMsg);
@@ -335,11 +364,14 @@ export default function VouchersPage() {
                     type="number"
                     value={createAmount}
                     onChange={(e) => setCreateAmount(e.target.value)}
-                    min="0.01"
+                    min={minVoucherAmount}
                     step="0.01"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md text-black bg-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                    placeholder="Enter amount"
+                    placeholder={`Enter amount (minimum $${minVoucherAmount.toFixed(2)})`}
                   />
+                  <p className="mt-1 text-xs text-gray-500">
+                    Minimum voucher amount: ${minVoucherAmount.toFixed(2)}
+                  </p>
                 </div>
                 <div className="mb-4">
                   <label className="block text-sm font-medium text-gray-700 mb-2">

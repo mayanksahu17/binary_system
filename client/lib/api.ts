@@ -345,6 +345,12 @@ class ApiClient {
     });
   }
 
+  async getMinimumVoucherAmount() {
+    return this.request<{ minimumVoucherAmount: number; minimumInvestment: number }>('/user/vouchers/minimum-amount', {
+      method: 'GET',
+    });
+  }
+
   async createVoucher(data: { amount: number; fromWalletType?: string; currency?: string }) {
     return this.request<{ voucher: any; payment?: any; orderId?: string }>('/user/vouchers/create', {
       method: 'POST',

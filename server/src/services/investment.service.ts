@@ -231,102 +231,39 @@ export async function calculateBinaryBonus(
     // Calculate binary payout: binary_pct * capped_matched
     const binaryBonus = cappedMatched * (binaryPct / 100);
 
-    // Consumption model: consume matched amount from available pool
-    // Priority: consume from carry first, then from unmatched business
-    // After matching, update carry forward with leftover
-    
-    // Calculate how much to consume from carry vs business
+    // Calculate new carry forward using simple formula: available - capped_matched
+    // This matches the rulebook formula: newCarry = available - capped_matched
     let newLeftCarry = 0;
     let newRightCarry = 0;
     let newLeftMatched = leftMatched;
     let newRightMatched = rightMatched;
 
-        if (cappedMatched > 0) {
-          // Consumption model: consume matched amount from available volume
-          // Priority: consume from carry first, then from unmatched business
-          
-          // Left side consumption
-          let leftConsumedFromCarry = 0;
-          let leftConsumedFromBusiness = 0;
-          
-          if (leftCarry >= cappedMatched) {
-            // All matched amount consumed from carry
-            leftConsumedFromCarry = cappedMatched;
-            leftConsumedFromBusiness = 0;
-            newLeftMatched = leftMatched; // No business consumed
-          } else {
-            // Some from carry, rest from unmatched business
-            leftConsumedFromCarry = leftCarry;
-            leftConsumedFromBusiness = cappedMatched - leftCarry;
-            newLeftMatched = leftMatched + leftConsumedFromBusiness;
-          }
-
-          // Right side consumption
-          let rightConsumedFromCarry = 0;
-          let rightConsumedFromBusiness = 0;
-          
-          if (rightCarry >= cappedMatched) {
-            // All matched amount consumed from carry
-            rightConsumedFromCarry = cappedMatched;
-            rightConsumedFromBusiness = 0;
-            newRightMatched = rightMatched; // No business consumed
-          } else {
-            // Some from carry, rest from unmatched business
-            rightConsumedFromCarry = rightCarry;
-            rightConsumedFromBusiness = cappedMatched - rightCarry;
-            newRightMatched = rightMatched + rightConsumedFromBusiness;
-          }
-
-          // Calculate new carry forward
-          // CRITICAL FIX: Carry forward flush logic
-          // 
-          // Rules:
-          // 1. If there was no carry initially (carry = 0), leftover unmatched business becomes carry (Day 1)
-          // 2. If carry was partially consumed, new carry = remaining carry + leftover unmatched business
-          // 3. If carry was fully consumed, new carry = 0 (leftover unmatched business stays as unmatched)
-          //
-          // This ensures that when carry is fully consumed, it's properly flushed to $0
-          // Leftover unmatched business remains available for future matching (tracked via business - matched)
-          
-          // Calculate leftover unmatched business (after consumption)
-          const leftRemainingUnmatchedBusiness = Math.max(0, leftUnmatchedBusiness - leftConsumedFromBusiness);
-          const rightRemainingUnmatchedBusiness = Math.max(0, rightUnmatchedBusiness - rightConsumedFromBusiness);
-          
-          // Calculate remaining carry (after consumption)
-          const leftRemainingCarry = Math.max(0, leftCarry - leftConsumedFromCarry);
-          const rightRemainingCarry = Math.max(0, rightCarry - rightConsumedFromCarry);
-          
-          // Left side carry forward calculation
-          if (leftCarry === 0 && leftConsumedFromCarry === 0) {
-            // No carry initially, leftover unmatched business becomes carry (Day 1 scenario)
-            newLeftCarry = leftRemainingUnmatchedBusiness;
-          } else if (leftRemainingCarry > 0) {
-            // Some carry remains, add leftover unmatched business to it
-            newLeftCarry = leftRemainingCarry + leftRemainingUnmatchedBusiness;
-          } else {
-            // Carry fully consumed, leftover unmatched business stays as unmatched (not carry)
-            // This is the critical fix: carry is flushed to $0 when fully consumed
-            newLeftCarry = 0;
-          }
-          
-          // Right side carry forward calculation
-          if (rightCarry === 0 && rightConsumedFromCarry === 0) {
-            // No carry initially, leftover unmatched business becomes carry (Day 1 scenario)
-            newRightCarry = rightRemainingUnmatchedBusiness;
-          } else if (rightRemainingCarry > 0) {
-            // Some carry remains, add leftover unmatched business to it
-            newRightCarry = rightRemainingCarry + rightRemainingUnmatchedBusiness;
-          } else {
-            // Carry fully consumed, leftover unmatched business stays as unmatched (not carry)
-            // This is the critical fix: carry is flushed to $0 when fully consumed
-            newRightCarry = 0;
-          }
-        } else {
-          // No matching, preserve existing carry forward
-          // Unmatched business stays as unmatched (tracked via leftMatched/rightMatched)
-          newLeftCarry = leftCarry;
-          newRightCarry = rightCarry;
-        }
+    if (cappedMatched > 0) {
+      // Simple formula: newCarry = available - capped_matched
+      // The leftover available volume (after subtracting matched amount) becomes the new carry forward
+      newLeftCarry = Math.max(0, leftAvailable - cappedMatched);
+      newRightCarry = Math.max(0, rightAvailable - cappedMatched);
+      
+      // Update matched amounts to track what was consumed from business
+      // We need to determine how much was consumed from unmatched business vs carry
+      // Consumption priority: carry first, then unmatched business
+      
+      // Calculate consumption from carry
+      const leftConsumedFromCarry = Math.min(leftCarry, cappedMatched);
+      const rightConsumedFromCarry = Math.min(rightCarry, cappedMatched);
+      
+      // Remaining consumption from unmatched business
+      const leftConsumedFromBusiness = cappedMatched - leftConsumedFromCarry;
+      const rightConsumedFromBusiness = cappedMatched - rightConsumedFromCarry;
+      
+      // Update matched amounts (only track what was consumed from business, not from carry)
+      newLeftMatched = leftMatched + leftConsumedFromBusiness;
+      newRightMatched = rightMatched + rightConsumedFromBusiness;
+    } else {
+      // No matching, preserve existing carry forward
+      newLeftCarry = leftCarry;
+      newRightCarry = rightCarry;
+    }
 
     // Update binary tree atomically to avoid race conditions
     // IMPORTANT: leftBusiness and rightBusiness remain unchanged (cumulative)

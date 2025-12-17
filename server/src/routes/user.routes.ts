@@ -10,6 +10,7 @@ import {
   createWithdrawal,
   getUserVouchers,
   createVoucher,
+  getMinimumVoucherAmount,
   updateWalletAddress,
   updateUserProfile,
   getUserReferralLinks,
@@ -33,6 +34,7 @@ router.get("/transactions", requireAuth, getUserTransactions);
 router.get("/reports", requireAuth, getUserReports);
 router.post("/withdraw", requireAuth, createWithdrawal);
 router.get("/vouchers", requireAuth, getUserVouchers);
+router.get("/vouchers/minimum-amount", requireAuth, getMinimumVoucherAmount);
 router.post("/vouchers/create", requireAuth, createVoucher);
 router.put("/wallet-address", requireAuth, updateWalletAddress);
 router.put("/profile", requireAuth, updateUserProfile);

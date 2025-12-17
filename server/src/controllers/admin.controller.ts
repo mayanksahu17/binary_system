@@ -21,6 +21,7 @@ import { Voucher } from "../models/Voucher";
 import { Ticket } from "../models/Ticket";
 import { Settings } from "../models/Settings";
 import { sendWithdrawalApprovedEmail, sendWithdrawalRejectedEmail } from "../lib/mail-service/email.service";
+import { getMinimumVoucherAmount as getMinVoucherAmount } from "../services/package.service";
 import bcrypt from "bcryptjs";
 
 /**
@@ -2173,6 +2174,16 @@ export const createVoucherForUser = asyncHandler(async (req, res) => {
 
   if (amount <= 0) {
     throw new AppError("Voucher amount must be greater than 0", 400);
+  }
+
+  // Get minimum voucher amount dynamically from active packages
+  const minVoucherAmount = await getMinVoucherAmount();
+  if (minVoucherAmount <= 0) {
+    throw new AppError("No active investment packages found. Cannot create voucher.", 400);
+  }
+  
+  if (amount < minVoucherAmount) {
+    throw new AppError(`Minimum voucher amount is $${minVoucherAmount.toFixed(2)}. You cannot create a voucher below this amount.`, 400);
   }
 
   // Find user by userId
